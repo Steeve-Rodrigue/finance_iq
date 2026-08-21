@@ -115,9 +115,13 @@ class Bill(Base):
         server_default=PaymentStatus.UNPAID.value,
         nullable=False,
     )
-    # Per-field confidence scores recorded by the parsing/categorizing/auditing agents
-    # (see /CLAUDE.md's `{result, confidence, reasoning}` convention) - nullable until an
-    # agent has actually run.
+    # Overall confidence/reasoning for the bill's current stage (see /CLAUDE.md's
+    # `{result, confidence, reasoning}` convention) - nullable until an agent has run.
+    # Distinct from field_confidences below, which is per-field granularity for later use.
+    confidence: Mapped[float | None] = mapped_column(Numeric(4, 3), nullable=True)
+    reasoning: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    # Per-field confidence scores recorded by the parsing/categorizing/auditing agents -
+    # nullable until an agent has actually run.
     field_confidences: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     extraction_strategy: Mapped[str | None] = mapped_column(String(100), nullable=True)
     verified_by_user: Mapped[bool] = mapped_column(
