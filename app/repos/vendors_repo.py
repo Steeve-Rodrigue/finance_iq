@@ -18,6 +18,11 @@ async def get_by_id(db: AsyncSession, user_id: uuid.UUID, vendor_id: uuid.UUID) 
     return result.scalar_one_or_none()
 
 
+async def get_by_key(db: AsyncSession, user_id: uuid.UUID, key: str) -> Vendor | None:
+    result = await db.execute(select(Vendor).where(Vendor.user_id == user_id, Vendor.key == key))
+    return result.scalar_one_or_none()
+
+
 async def create(
     db: AsyncSession, user_id: uuid.UUID, name: str, key: str, address: str | None = None
 ) -> Vendor:
