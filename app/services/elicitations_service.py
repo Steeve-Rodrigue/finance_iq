@@ -8,9 +8,10 @@ from app.models.elicitations import Elicitation
 from app.repos import bills_repo, elicitations_repo
 
 # CRUD baseline only. Deciding when to pause and elicit, formulating the question, and
-# resuming the paused agent are all part of the elicitation decision point in /CLAUDE.md
-# (roadmap phase 5) and are out of scope here - this module only stores and retrieves
-# elicitation records a caller already decided to create or answer.
+# resuming the paused agent (merging an answer back into the bill) live in
+# app/services/bill_parser_service.py (see parse_and_persist_bill's unresolved branch and
+# resume_from_elicitation_answer) - this module only stores and retrieves elicitation records
+# a caller already decided to create or answer.
 
 
 async def list_elicitations(

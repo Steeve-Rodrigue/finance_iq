@@ -5,16 +5,43 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.users import User
-from app.schemas.elicitations import ElicitationCreate, ElicitationRead, ElicitationUpdate
-from app.services import elicitations_service
+from app.schemas.elicitations import (
+    ElicitationAnswer,
+    ElicitationCreate,
+    ElicitationRead,
+    ElicitationUpdate,
+)
+from app.services import bill_parser_service, elicitations_service
 
 router = APIRouter(prefix="/bills/{bill_id}/elicitations", tags=["elicitations"])
 
-# CRUD baseline only - see app/services/elicitations_service.py for why the actual
-# pause/resume elicitation flow (MCP server, clarify.html, resuming a paused agent) is
-# intentionally absent from this router.
+# The generic CRUD routes below are a baseline (list/get/create/update/delete an Elicitation
+# record directly). /{elicitation_id}/answer is the actual pause/resume entry point - see
+# app/services/bill_parser_service.py::resume_from_elicitation_answer.
+
+
+@router.post("/{elicitation_id}/answer", response_model=ElicitationRead)
+async def answer_elicitation(
+    bill_id: uuid.UUID,
+    elicitation_id: uuid.UUID,
+    body: ElicitationAnswer,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ElicitationRead:
+    try:
+        await bill_parser_service.resume_from_elicitation_answer(
+            db, current_user.id, bill_id, elicitation_id, body.answer
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    elicitation = await elicitations_service.get_elicitation(
+        db, current_user.id, bill_id, elicitation_id
+    )
+    return ElicitationRead.model_validate(elicitation)
 
 
 @router.post("/", response_model=ElicitationRead, status_code=status.HTTP_201_CREATED)

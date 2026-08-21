@@ -28,6 +28,13 @@ class ElicitationUpdate(BaseModel):
     answered_at: datetime | None = None
 
 
+class ElicitationAnswer(BaseModel):
+    """What the user submits to resolve a pending elicitation - field corrections/confirmations
+    merged into the parser's partial result, e.g. {"total_amount": 42.50}."""
+
+    answer: dict
+
+
 class ElicitationRead(ElicitationBase):
     model_config = ConfigDict(from_attributes=True)
 
