@@ -6,12 +6,17 @@ requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.19.1",
     "bcrypt>=4.3.0",
-    "claude-agent-sdk>=0.2.139",
+    "claude-agent-sdk>=0.2.144",
     "email-validator>=2.2.0",
     "fastapi>=0.141.1",
+    "openai>=3.3.1",
+    "pdf2image>=1.17.0",
+    "pdfplumber>=0.11.10",
+    "pillow>=12.3.0",
     "psycopg[binary,pool]>=3.3.4",
     "pydantic-settings>=2.15.0",
     "pyjwt>=2.10.1",
+    "pytesseract>=0.3.13",
     "python-dotenv>=1.2.2",
     "sqlalchemy[asyncio]>=2.0.52",
     "structlog>=26.1.0",
@@ -43,7 +48,7 @@ select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "ASYNC", "RUF"]
 known-first-party = ["app"]
 
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File"]
 
 [tool.ruff.format]
 quote-style = "double"
