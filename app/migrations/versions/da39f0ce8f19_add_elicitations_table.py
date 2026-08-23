@@ -1,7 +1,7 @@
 """add elicitations table
 
 Revision ID: da39f0ce8f19
-Revises: ba4a204a9e5a
+Revises: c6a8c264126e
 Create Date: 2026-08-20 08:00:05.000000
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "da39f0ce8f19"
-down_revision: str | Sequence[str] | None = "ba4a204a9e5a"
+down_revision: str | Sequence[str] | None = "c6a8c264126e"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

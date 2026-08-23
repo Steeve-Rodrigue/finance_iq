@@ -14,7 +14,8 @@
 - Small, closed vocabularies (status/stage-style fields) are Python `enum.StrEnum` classes mapped
   via SQLAlchemy `Enum(..., name=...)` with an explicit Postgres type name - never free-text
   strings - unless the schema description explicitly marks the field as open-ended/free-form
-  (e.g. `flags.flag_type` is deliberately left as a plain string).
+  (e.g. the now-removed `flags.flag_type` was deliberately left as a plain string, not an enum -
+  same rule applies to any future free-form classification field).
   - Alembic doesn't autogenerate Postgres enum type creation/teardown correctly across
     `create_table`/`drop_table` boundaries: hand-written migrations must create every enum type
     before the first table that references it, and explicitly `DROP TYPE` each one in

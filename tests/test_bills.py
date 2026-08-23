@@ -85,8 +85,8 @@ async def test_create_bill_with_only_required_fields_succeeds(client: AsyncClien
 
 
 # --- Regression: blocker #2 -------------------------------------------------------------
-# DELETE /bills/{bill_id} used to raise MissingGreenlet when the bill had line items, flags,
-# or elicitations, because the cascading delete needed to lazy-load those collections outside
+# DELETE /bills/{bill_id} used to raise MissingGreenlet when the bill had line items or
+# elicitations, because the cascading delete needed to lazy-load those collections outside
 # a greenlet.
 async def test_delete_bill_with_children_succeeds(client: AsyncClient) -> None:
     token = await signup_and_login(client, "bill-children@example.com", "bill_children")
@@ -99,13 +99,6 @@ async def test_delete_bill_with_children_succeeds(client: AsyncClient) -> None:
         headers=auth_header(token),
     )
     assert line_item_resp.status_code == 201
-
-    flag_resp = await client.post(
-        f"/bills/{bill_id}/flags/",
-        json={"flag_type": "duplicate", "reason": "Looks like a duplicate charge"},
-        headers=auth_header(token),
-    )
-    assert flag_resp.status_code == 201
 
     elicitation_resp = await client.post(
         f"/bills/{bill_id}/elicitations/",
@@ -125,10 +118,6 @@ async def test_delete_bill_with_children_succeeds(client: AsyncClient) -> None:
     line_items_resp = await client.get(f"/bills/{bill_id}/line-items/", headers=auth_header(token))
     assert line_items_resp.status_code == 200
     assert line_items_resp.json() == []
-
-    flags_resp = await client.get(f"/bills/{bill_id}/flags/", headers=auth_header(token))
-    assert flags_resp.status_code == 200
-    assert flags_resp.json() == []
 
     elicitations_resp = await client.get(
         f"/bills/{bill_id}/elicitations/", headers=auth_header(token)

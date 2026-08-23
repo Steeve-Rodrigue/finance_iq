@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from app.models.bill_line_items import BillLineItem
     from app.models.categories import Category
     from app.models.elicitations import Elicitation
-    from app.models.flags import Flag
     from app.models.users import User
     from app.models.vendors import Vendor
 
@@ -150,7 +149,6 @@ class Bill(Base):
     line_items: Mapped[list["BillLineItem"]] = relationship(
         back_populates="bill", cascade="all, delete-orphan"
     )
-    flags: Mapped[list["Flag"]] = relationship(back_populates="bill", cascade="all, delete-orphan")
     elicitations: Mapped[list["Elicitation"]] = relationship(
         back_populates="bill", cascade="all, delete-orphan"
     )

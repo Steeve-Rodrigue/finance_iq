@@ -17,7 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 # users is deliberately excluded: it has no user_id column (it IS the tenant), and signup
 # has to insert a row before any app.current_user_id session var could ever be set.
-TABLES = ("categories", "vendors", "bills", "bill_line_items", "flags", "elicitations")
+TABLES = ("categories", "vendors", "bills", "bill_line_items", "elicitations")
 
 
 def upgrade() -> None:
