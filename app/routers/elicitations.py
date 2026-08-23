@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.exceptions import ConflictError, NotFoundError
+from app.models.elicitations import ElicitationStage
 from app.models.users import User
 from app.schemas.elicitations import (
     ElicitationAnswer,
@@ -13,13 +14,21 @@ from app.schemas.elicitations import (
     ElicitationRead,
     ElicitationUpdate,
 )
-from app.services import bill_parser_service, elicitations_service
+from app.services import bill_parser_service, categorizer_service, elicitations_service
 
 router = APIRouter(prefix="/bills/{bill_id}/elicitations", tags=["elicitations"])
 
 # The generic CRUD routes below are a baseline (list/get/create/update/delete an Elicitation
-# record directly). /{elicitation_id}/answer is the actual pause/resume entry point - see
-# app/services/bill_parser_service.py::resume_from_elicitation_answer.
+# record directly). /{elicitation_id}/answer is the actual pause/resume entry point - dispatched
+# by stage to whichever agent paused (bill_parser_service for PARSING,
+# categorizer_service for CATEGORIZING) since each stage resumes into different persistence.
+
+_RESUME_BY_STAGE = {
+    ElicitationStage.PARSING: bill_parser_service.resume_from_elicitation_answer,
+    ElicitationStage.CATEGORIZING: (
+        categorizer_service.resume_categorization_from_elicitation_answer
+    ),
+}
 
 
 @router.post("/{elicitation_id}/answer", response_model=ElicitationRead)
@@ -31,13 +40,22 @@ async def answer_elicitation(
     db: AsyncSession = Depends(get_db),
 ) -> ElicitationRead:
     try:
-        await bill_parser_service.resume_from_elicitation_answer(
-            db, current_user.id, bill_id, elicitation_id, body.answer
+        elicitation = await elicitations_service.get_elicitation(
+            db, current_user.id, bill_id, elicitation_id
         )
+        resume = _RESUME_BY_STAGE[elicitation.stage]
+        await resume(db, current_user.id, bill_id, elicitation_id, body.answer_text)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        # parse_elicitation_answer couldn't turn the reply into usable JSON - a 4xx the user
+        # can act on (rephrase and retry), not an opaque 500.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"couldn't understand that answer, please rephrase: {exc}",
+        ) from exc
     elicitation = await elicitations_service.get_elicitation(
         db, current_user.id, bill_id, elicitation_id
     )

@@ -20,6 +20,13 @@ async def get_by_id(
     return result.scalar_one_or_none()
 
 
+async def get_by_slug(db: AsyncSession, user_id: uuid.UUID, slug: str) -> Category | None:
+    result = await db.execute(
+        select(Category).where(Category.user_id == user_id, Category.slug == slug)
+    )
+    return result.scalar_one_or_none()
+
+
 async def create(db: AsyncSession, user_id: uuid.UUID, name: str, slug: str) -> Category:
     category = Category(user_id=user_id, name=name, slug=slug)
     db.add(category)

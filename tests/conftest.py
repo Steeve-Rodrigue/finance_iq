@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -6,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import engine, get_db
 from app.main import app
+from app.services import categorizer_service
 
 
 @pytest.fixture
@@ -37,6 +39,26 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
             app.dependency_overrides.pop(get_db, None)
             await session.close()
             await outer_transaction.rollback()
+
+
+@pytest.fixture(autouse=True)
+def _mock_categorizer_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A resolved parse now automatically chains into categorization
+    (bill_parser_service.parse_and_persist_bill) - most tests don't care about categorization
+    specifics and shouldn't need to know it exists, so default it to a fast, deterministic,
+    unconditional high-confidence result. Same principle as call_parser being mocked: no test
+    here should ever make a real, paid API call. Tests that DO care about categorizer behavior
+    override this with their own monkeypatch.setattr, which simply wins since it runs later."""
+
+    async def _fake_call_categorizer(**kwargs: Any) -> dict[str, Any]:
+        return {
+            "category_slug": "autre",
+            "category_name": "Autre",
+            "confidence": 0.95,
+            "reasoning": "default test category",
+        }
+
+    monkeypatch.setattr(categorizer_service, "call_categorizer", _fake_call_categorizer)
 
 
 @pytest.fixture

@@ -2,6 +2,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bill_line_items import BillLineItem
@@ -57,6 +58,20 @@ async def update(
     await db.flush()
     await db.refresh(line_item)
     return line_item
+
+
+async def set_category_for_bill(
+    db: AsyncSession, user_id: uuid.UUID, bill_id: uuid.UUID, category_id: uuid.UUID | None
+) -> None:
+    """Bulk-propagate the bill-level category down to all of its line items (one UPDATE, not
+    a fetch-then-loop) - the categorizer decides at the bill level, not per line item, so
+    every line item on the bill inherits the same category once one is assigned."""
+    await db.execute(
+        sa_update(BillLineItem)
+        .where(BillLineItem.user_id == user_id, BillLineItem.bill_id == bill_id)
+        .values(category_id=category_id)
+    )
+    await db.flush()
 
 
 async def delete(db: AsyncSession, user_id: uuid.UUID, line_item_id: uuid.UUID) -> bool:

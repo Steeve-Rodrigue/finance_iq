@@ -29,10 +29,11 @@ class ElicitationUpdate(BaseModel):
 
 
 class ElicitationAnswer(BaseModel):
-    """What the user submits to resolve a pending elicitation - field corrections/confirmations
-    merged into the parser's partial result, e.g. {"total_amount": 42.50}."""
+    """What the user submits to resolve a pending elicitation - plain text, e.g. "it's from
+    Atelier du Bois, paid by card", not JSON. Turned into structured field corrections via
+    an OpenRouter call - see app/services/bill_parser_service.py::parse_elicitation_answer."""
 
-    answer: dict
+    answer_text: str = Field(min_length=1)
 
 
 class ElicitationRead(ElicitationBase):

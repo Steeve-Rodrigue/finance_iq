@@ -1,35 +1,64 @@
-import json
+import re
 import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import structlog
-from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.exceptions import ConflictError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.bills import BillStage, BillStatus
 from app.models.elicitations import ElicitationStage, ElicitationStatus
 from app.repos import bill_line_items_repo, bills_repo, vendors_repo
-from app.services import elicitations_service, pdf_extraction
+from app.services import (
+    categorizer_service,
+    decision_loop,
+    elicitation_answers,
+    elicitations_service,
+    llm_client,
+    pdf_extraction,
+)
 
 logger = structlog.get_logger()
 
-_client = AsyncOpenAI(
-    api_key=settings.openrouter_api_key, base_url=settings.openrouter_base_url, timeout=60
-)
-
 PARSER_MODEL = settings.parser_model
 RETRY_MODEL = settings.parser_retry_model
-HIGH_CONFIDENCE_THRESHOLD = 0.80
-LOW_CONFIDENCE_FLOOR = 0.50
+HIGH_CONFIDENCE_THRESHOLD = 0.85
+LOW_CONFIDENCE_FLOOR = 0.75
 
 PARSER_PROMPT = """You extract information from an invoice or receipt, given the text \
 extracted from the original PDF below - usually clean, but it may contain OCR recognition \
 errors (misread characters, garbled words) if the source was a scanned document. Account for \
 that possibility when judging your confidence.
+
+The document can be in any language. Write your own generated/interpretive text - \
+"common_name" and "reasoning" - in French, regardless of what language the document itself \
+is in. Do NOT translate "vendor_name_raw", "address", "invoice_number", or each line item's \
+"description" - copy those exactly as printed in the document's own language/script, since \
+they're used to match records against the original and must stay faithful to the source, not \
+localized.
+
+Sanity-check every field, not just whether something was technically extracted. This is the \
+single most common way this extraction goes subtly wrong, so take it seriously: characters can \
+be perfectly legible - every letter clearly there, nothing you'd call "illegible" - while the \
+words they spell still don't mean anything real. An address is the classic case: OCR can \
+produce a crisp, readable string that is nonetheless not a real street address (wrong word \
+order, a "street name" that isn't a real word, a postal code that doesn't match the town, \
+fragments stitched from two different lines of the source). A product name has the same trap: \
+the raw description can be an abbreviated or truncated label that reads fine as text but \
+doesn't actually identify what was bought. Don't accept a field just because it's legible - \
+actively ask yourself "does this, as a whole, correspond to a real address / a real product / \
+a real name", not just "are these characters readable". If anything doesn't make sense - \
+legible or not - don't silently keep it or silently drop it - lower your confidence to match, \
+and say exactly which field and why in "reasoning", so the user can be asked to confirm it \
+rather than the bad value being trusted automatically.
+
+Your output must be syntactically valid JSON above everything else. If the source text \
+contains quotation marks, curly/smart quotes ("like this", 'like this'), or other unusual \
+punctuation inside a value (common in garbled OCR text), either escape them properly \
+(\\" for a literal double quote) or paraphrase around them - never place a raw, unescaped \
+quote character inside a JSON string value, since that alone breaks parsing.
 
 Respond ONLY in JSON, no markdown, no preamble, with exactly this shape:
 
@@ -48,7 +77,8 @@ Respond ONLY in JSON, no markdown, no preamble, with exactly this shape:
   "tax_amount": 0.00,
   "total_amount": 0.00,
   "amount_due": 0.00,
-  "payment_method": "card, direct debit, cash, transfer, or null",
+  "payment_method": "carte, prélèvement, espèces, virement, ou null",
+  "payment_status": "unpaid, partial, ou paid",
   "line_items": [
     {
       "description": "...", "common_name": "...",
@@ -56,18 +86,34 @@ Respond ONLY in JSON, no markdown, no preamble, with exactly this shape:
     }
   ],
   "confidence": 0.0,
-  "reasoning": "why this confidence level"
+  "reasoning": "pourquoi ce niveau de confiance, en français",
+  "uncertain_fields": [
+    {"field": "nom_du_champ", "reason": "raison courte et précise, en français"}
+  ]
 }
 
 Field-by-field notes:
-- document_type: "invoice" for a supplier invoice (itemized tax, billing period), "receipt" for a
-  point-of-sale/card receipt with a single amount.
-- vendor_name_raw: the merchant/vendor's name exactly as printed on this specific document.
+- document_type: always the literal English value "invoice" for a supplier invoice (itemized
+  tax, billing period) or "receipt" for a point-of-sale/card receipt with a single amount -
+  this is a fixed database category, not translated, regardless of the document's language or
+  the French instruction above.
+- vendor_name_raw: the merchant/vendor's name exactly as printed on this specific document, in
+  its original language. Don't just copy whatever text sits near the vendor name - actually
+  evaluate it as an enterprise: does it have a plausible structure (a real company name)?
+   - Is it a recognizable business name? (Intermarché, Lidl, EDF, Amazon, Carrefour, etc.)
+   - Is the structure plausible and coherent?
+   - Or is it OCR garbled (fragmented words, misaligned, incoherent)
 - vendor_key: the same name normalized (lowercase, no punctuation or legal-entity suffix) - used
   to look up or create the matching vendor, so it must stay stable even if vendor_name_raw varies
   slightly between documents for the same merchant.
-- address : complete address, make sure the parse text looks like a real addres, otherwise,
-  make research
+- address: complete address, exactly as printed in its original language - never translated.
+  Don't just copy whatever text sits near the vendor name - actually evaluate it as an address:
+  does it have a plausible structure (a real street name, a number, a postal code that's the
+  right shape for the country, a real town)? A string that's legible but doesn't hang together
+  as a real address (garbled OCR word order, a postal code that doesn't belong to the named
+  town, fragments from unrelated lines run together) is not a good extraction even though every
+  character in it is readable - treat it the same as an illegible field for confidence purposes,
+  don't silently pass it through.
 - invoice_number: as printed, or null if there isn't one.
 - issue_date / due_date: YYYY-MM-DD, or null if absent or not applicable.
 - service_period_start / service_period_end: the period the invoice covers (e.g. a subscription
@@ -81,20 +127,61 @@ Field-by-field notes:
 - currency: the ISO-4217 code inferred from the document's actual currency symbol or text
   (e.g. "€" or "EUR" -> EUR, "$" -> USD, "£" -> GBP). Do not default to EUR - only use it if
   the document is genuinely in euros or the currency truly can't be determined.
-- payment_method: "card", "direct debit", "cash", "transfer", or null if not shown.
+- payment_method: "carte", "prélèvement", "espèces", "virement", or null if not shown - your
+  own generated label in French, not a transcription, so translate it even if the document
+  itself says e.g. "cash" or "credit card".
+- payment_status: always the literal English value "unpaid", "partial", or "paid" - a fixed
+  database category like document_type, never translated. Infer it, don't leave it as a
+  default:
+  - "receipt" documents are proof a transaction already completed - default "paid" unless the
+    document explicitly shows a remaining balance still owed (then "partial") or explicitly
+    indicates nothing was paid (rare for a receipt, but possible - then "unpaid").
+  - "invoice" documents are a request for future payment - default "unpaid" unless there's
+    explicit evidence of payment (a "paid"/"réglé" stamp or watermark, amount_due = 0) - then
+    "paid" - or a partial payment already recorded against a larger total - then "partial".
+  - Only use these three values. "overdue" and "disputed" aren't inferable from a single
+    document (they need today's date or external dispute context this agent doesn't have) -
+    never guess either of those.
 - line_items: one entry per line on the document.
-  - description: the exact label as printed.
-  - common_name: a short, normalized name derived from description (e.g. "premium wheat bread"
-    -> "bread").
+  - description: the exact label as printed, in the document's own language - never translated.
+  - common_name: a short, normalized name in French for what this line item actually *is* -
+    think about it, don't just mechanically shorten or translate the raw description. Receipt
+    line labels are routinely abbreviated, truncated, or garbled by OCR (e.g. "ST ELOI BIO RIZ
+    BASM" is a real product, not gibberish: infer "riz basmati" - a rice brand/variety label
+    compressed onto a receipt line, not literal nonsense to copy as-is). Use the vendor, the
+    price, and ordinary product knowledge to figure out what was actually purchased, the same
+    way a person glancing at the receipt would, rather than pattern-matching only the visible
+    characters. If you genuinely can't tell what a line item is even after that reasoning, say
+    so honestly (a generic term, or note the uncertainty) rather than inventing a specific
+    product with false confidence.
   - quantity, unit_price, line_total: as printed, or inferred from context if only one of the
     three is missing (line_total = quantity * unit_price).
-- confidence: your overall confidence in this extraction, between 0 and 1.
-  - >= 0.80 (high): every key field is legible and the amounts reconcile (line_items +
-    tax_amount = total_amount, etc.).
-  - 0.50 to 0.80 (medium): plausible but one or two fields are ambiguous or partly illegible.
-  - < 0.50 (low): key fields are missing, illegible, or the amounts don't reconcile at all.
-- reasoning: one short sentence explaining that confidence level (e.g. which field is the
-  problem).
+- confidence: your overall confidence in this extraction, between 0 and 1. Being present isn't
+  enough - a field that's legible but doesn't make sense (see the sanity-check note above)
+  counts against confidence the same as a field that's missing or illegible. Never output above
+  0.95, even when everything looks perfect - 1.0 is reserved for a value a human has explicitly
+  confirmed, not something you claim on your own; leaving that headroom is what makes a
+  human-confirmed value distinguishable from your own best guess downstream.
+  - 0.80 to 0.95 (high): every key field is legible, plausible, and the amounts reconcile
+    (line_items + tax_amount = total_amount, etc.).
+  - 0.50 to 0.80 (medium): plausible but one or two fields are ambiguous, partly illegible, or
+    don't quite make sense.
+  - < 0.50 (low): key fields are missing, illegible, don't make sense, or the amounts don't
+    reconcile at all.
+- reasoning: one short sentence in French explaining that confidence level - name the specific
+  field that's the problem and why (illegible, missing, or just doesn't make sense), not a
+  vague "something's uncertain".
+- uncertain_fields: the itemized version of "reasoning" - one {"field", "reason"} entry per
+  specific field you're not fully confident about, "reason" a short sentence in French (e.g.
+  {"field": "vendor_name_raw", "reason": "semble corrompu par l'OCR, plusieurs lettres
+  incohérentes"}). "field" must be the exact JSON key from this schema (for a line item,
+  "line_items[N].description" where N is its 0-based index) - the user's own current
+  (possibly-wrong) value for that exact field gets shown alongside your reason when this is
+  presented, so an approximate or made-up key isn't useful here, it has to resolve to a real
+  field. This is what gets shown to the user when they're asked to confirm - a vague
+  "reasoning" sentence isn't enough on its own, name every field that's actually in question so
+  the user knows precisely what to check, not just that something, somewhere, might be wrong.
+  Empty list only when confidence is high and nothing is genuinely in question.
 """
 
 
@@ -105,7 +192,7 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
     text, extraction_method = await pdf_extraction.extract_text(pdf_path)
     logger.debug("bill_parser.extracted_text", method=extraction_method, chars=len(text))
 
-    response = await _client.chat.completions.create(
+    response = await llm_client.client.chat.completions.create(
         model=model,
         max_tokens=4096,
         messages=[
@@ -113,7 +200,12 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
             {"role": "user", "content": f"Extracted text:\n\n{text}"},
         ],
         temperature=0.3,
-        extra_body={"reasoning": {"effort": "low"}},
+        # "medium", not "low" - the address/common_name sanity-checking above genuinely needs
+        # the model to reason, not just pattern-match visible characters. Was "low" earlier
+        # this session specifically because gpt-oss-120b can spend its whole token budget on
+        # hidden reasoning and return empty content if that budget runs out first - live-tested
+        # after this change with the current max_tokens=4096 to confirm it doesn't regress that.
+        extra_body={"reasoning": {"effort": "medium"}},
     )
 
     choice = response.choices[0]
@@ -126,14 +218,28 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
             f"usage={response.usage})"
         )
 
-    start, end = raw.find("{"), raw.rfind("}")
-    if start == -1 or end == -1 or end < start:
-        raise RuntimeError(f"no JSON object found in parser response:\n{raw}")
+    result = llm_client.clamp_confidence(llm_client.extract_json(raw, source="parser"))
+    # Not something the model reports about itself - it's which local extraction path actually
+    # produced the text it was given (see pdf_extraction.extract_text), so it's set here
+    # rather than asked for in the JSON schema.
+    result["extraction_strategy"] = extraction_method
+    return result
 
+
+async def _call_parser_safe(pdf_path: Path, model: str) -> dict[str, Any]:
+    """call_parser, but a malformed/unparseable response degrades to a confidence-0 result
+    instead of raising. A parse failure (e.g. the model echoing an unescaped smart-quote from
+    garbled OCR text straight into a JSON string) is just an extreme case of "not confident" -
+    it should go through the same retry-then-elicit path as any other bad result, not bypass
+    it by crashing run_decision_loop on the first attempt before the retry model ever runs."""
     try:
-        return json.loads(raw[start : end + 1])
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"invalid JSON from parser: {exc}\n\nraw response:\n{raw}") from exc
+        return await call_parser(pdf_path, model)
+    except RuntimeError as exc:
+        logger.warning("bill_parser.call_failed", model=model, error=str(exc))
+        return {
+            "confidence": 0.0,
+            "reasoning": f"Le modèle {model} n'a pas produit une réponse exploitable : {exc}",
+        }
 
 
 async def run_decision_loop(pdf_path: Path) -> tuple[dict[str, Any], bool]:
@@ -142,19 +248,27 @@ async def run_decision_loop(pdf_path: Path) -> tuple[dict[str, Any], bool]:
     same call again. Still low after that -> give up and say so, don't guess (non-negotiable
     #4) - real elicitation is Phase 3, this just returns resolved=False.
 
-    Returns (result, resolved).
+    Returns (result, resolved). Uses the shared decision_loop.run (roadmap.md Part 6.4) - the
+    only parser-specific thing left here is what "a different approach" means (escalate to a
+    stronger model) and the per-attempt logging.
     """
-    result = await call_parser(pdf_path, PARSER_MODEL)
-    logger.info("bill_parser.attempt", model=PARSER_MODEL, confidence=result.get("confidence"))
-    if result.get("confidence", 0) >= HIGH_CONFIDENCE_THRESHOLD:
-        return result, True
 
-    result = await call_parser(pdf_path, RETRY_MODEL)
-    logger.info("bill_parser.retry", model=RETRY_MODEL, confidence=result.get("confidence"))
-    if result.get("confidence", 0) >= LOW_CONFIDENCE_FLOOR:
-        return result, True
+    async def _first() -> dict[str, Any]:
+        result = await _call_parser_safe(pdf_path, PARSER_MODEL)
+        logger.info("bill_parser.attempt", model=PARSER_MODEL, confidence=result.get("confidence"))
+        return result
 
-    return result, False
+    async def _retry() -> dict[str, Any]:
+        result = await _call_parser_safe(pdf_path, RETRY_MODEL)
+        logger.info("bill_parser.retry", model=RETRY_MODEL, confidence=result.get("confidence"))
+        return result
+
+    return await decision_loop.run(
+        _first,
+        _retry,
+        high_confidence_threshold=HIGH_CONFIDENCE_THRESHOLD,
+        low_confidence_floor=LOW_CONFIDENCE_FLOOR,
+    )
 
 
 async def _get_or_create_vendor_id(
@@ -189,23 +303,68 @@ _BILL_FIELDS = (
     "amount_due",
     "currency",
     "payment_method",
+    "payment_status",
+    "extraction_strategy",
 )
+
+
+_LINE_ITEM_FIELD_RE = re.compile(r"^line_items\[(\d+)\]\.(.+)$")
+
+
+def _lookup_field_value(result: dict[str, Any], field: str) -> Any:
+    """Resolves a field path from PARSER_PROMPT's "uncertain_fields" ("vendor_name_raw",
+    "line_items[1].description", ...) back to its actual current value in `result`, so the
+    elicitation question can show what's there now, not just the field's name."""
+    match = _LINE_ITEM_FIELD_RE.match(field)
+    if match:
+        index, sub_field = int(match.group(1)), match.group(2)
+        line_items = result.get("line_items") or []
+        if 0 <= index < len(line_items):
+            return line_items[index].get(sub_field)
+        return None
+    return result.get(field)
+
+
+def _format_field_value(value: Any) -> str:
+    if value is None or value == "":
+        return "non renseigné"
+    return f'"{value}"' if isinstance(value, str) else str(value)
 
 
 def build_elicitation_question(result: dict[str, Any]) -> str:
     """A human-readable question from the parser's own reasoning, grounded in whatever it did
-    manage to read - not a generic "something's wrong" message."""
+    manage to read - not a generic "something's wrong" message. In French, to match
+    PARSER_PROMPT's "reasoning" (embedded below) - a French reasoning wrapped in an English
+    template would read as a mixed-language sentence.
+
+    Itemizes "uncertain_fields" below the general reasoning sentence, one line per specific
+    field *with its current (possibly-wrong) value shown inline* - naming the field alone
+    still leaves the user having to go dig up what the system actually thinks that field is
+    before they can correct it; showing the value directly is what makes the question
+    something they can act on immediately, not just a pointer to go investigate."""
     vendor = result.get("vendor_name_raw") or result.get("vendor_key")
     total = result.get("total_amount")
     currency = result.get("currency") or ""
-    known = f" from {vendor}" if vendor else ""
+    known = f" de {vendor}" if vendor else ""
     amount = f" ({total} {currency})".rstrip() if total is not None else ""
-    reasoning = (
-        result.get("reasoning") or "the extraction wasn't confident enough to trust automatically."
+    reasoning = result.get("reasoning") or (
+        "l'extraction n'était pas assez fiable pour être validée automatiquement."
     )
+
+    uncertain_fields = [f for f in (result.get("uncertain_fields") or []) if f.get("field")]
+    detail = ""
+    if uncertain_fields:
+        lines = []
+        for entry in uncertain_fields:
+            field = entry["field"]
+            current_value = _format_field_value(_lookup_field_value(result, field))
+            reason = entry.get("reason") or "incertain"
+            lines.append(f"- {field} (actuellement {current_value}) : {reason}")
+        detail = "\n\nChamps à vérifier :\n" + "\n".join(lines)
+
     return (
-        f"I read a bill{known}{amount}, but I'm not confident in the result: {reasoning} "
-        "Can you confirm the correct details, or tell me what's wrong?"
+        f"J'ai lu une facture{known}{amount}, mais je ne suis pas sûr du résultat : {reasoning}"
+        f"{detail}\n\nPeux-tu confirmer les bonnes informations, ou me dire ce qui ne va pas ?"
     )
 
 
@@ -223,7 +382,13 @@ async def persist_bill_result(
     updates["vendor_id"] = await _get_or_create_vendor_id(db, user_id, result)
     updates["current_stage"] = BillStage.CATEGORIZING
 
-    await bills_repo.update(db, user_id, bill_id, **updates)
+    bill = await bills_repo.update(db, user_id, bill_id, **updates)
+    if bill is None:
+        # Non-negotiable #4: never fail silently. A mismatched/missing bill here means
+        # something upstream is wrong (wrong tenant, or the bill was deleted mid-flight) -
+        # surface it rather than quietly inserting line items for a bill that was never
+        # actually updated.
+        raise NotFoundError(f"bill {bill_id} not found")
 
     for line_item in result.get("line_items", []) or []:
         if "description" not in line_item or "line_total" not in line_item:
@@ -252,6 +417,9 @@ async def parse_and_persist_bill(
 
     if resolved:
         await persist_bill_result(db, user_id, bill_id, result)
+        # Continue the pipeline automatically - parsing resolved means there's a vendor and
+        # line items to categorize, not a separate manually-triggered step.
+        await categorizer_service.categorize_and_persist_bill(db, user_id, bill_id)
         return
 
     # Not confident enough to trust - persist a real Elicitation (Phase 3) instead of just
@@ -278,26 +446,89 @@ async def parse_and_persist_bill(
     )
 
 
+def _merge_line_items(
+    original: list[dict[str, Any]], corrected: list[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
+    """extracted_answer's line_items are corrections, not a replacement - the extraction
+    prompt is deliberately told not to invent/repeat values the user didn't mention (see
+    ANSWER_EXTRACTION_PROMPT), so a corrected item routinely lacks line_total/quantity/
+    unit_price even when it's meant to patch an existing item, not replace the whole list.
+    Blindly replacing line_items with that array silently drops the real amounts for every
+    item the user didn't happen to mention - money data, not something to guess or lose
+    silently (non-negotiable #1/#4 territory even though this isn't a query-scoping case).
+
+    ANSWER_EXTRACTION_PROMPT tells the model to reference the item it's correcting by its
+    0-based "index" in the original array (the model sees that array as context, so it can
+    resolve "the second item"/an ambiguous product name/etc. far more reliably than any string
+    match we could do here) - that's the primary match. A common_name/description
+    (case-insensitive) match is kept only as a fallback for a response that omits "index".
+    Either way: corrected fields win, everything else - including line_total - carries over
+    onto the matched original. No match at all -> treat as a genuinely new item, kept only if
+    it already has its own line_total (never invent an amount)."""
+    if not corrected:
+        return original
+
+    merged = [dict(item) for item in original]
+
+    def _key(item: dict[str, Any]) -> str:
+        return str(item.get("common_name") or item.get("description") or "").strip().lower()
+
+    for raw_item in corrected:
+        corrected_item = dict(raw_item)
+        index = corrected_item.pop("index", None)
+        if isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(merged):
+            merged[index].update(corrected_item)
+            continue
+
+        target_key = _key(corrected_item)
+        match = next((m for m in merged if target_key and _key(m) == target_key), None)
+        if match is not None:
+            match.update(corrected_item)
+        elif "line_total" in corrected_item:
+            merged.append(corrected_item)
+        else:
+            logger.warning("bill_parser.new_line_item_skipped_no_amount", item=corrected_item)
+
+    return merged
+
+
 async def resume_from_elicitation_answer(
     db: AsyncSession,
     user_id: uuid.UUID,
     bill_id: uuid.UUID,
     elicitation_id: uuid.UUID,
-    answer: dict[str, Any],
+    answer_text: str,
 ) -> None:
-    """The other half of the pause built in parse_and_persist_bill's unresolved branch - a
-    human's answer merges into the parser's own partial result (the human's values win) and
+    """The other half of the pause built in parse_and_persist_bill's unresolved branch. The
+    user answers in plain text, not JSON - parse_elicitation_answer turns that into structured
+    corrections, which merge into the parser's own partial result (the human's values win) and
     the bill completes through the same persist_bill_result path a first-pass resolve would
-    have used. Real pause/resume: this can run in a completely separate request, hours or
-    days later, after a server restart - nothing here depends on the original upload request
-    still being alive, since the state it needs lives in Postgres (the Elicitation row), not
-    in-process."""
+    have used. Real pause/resume: this can run in a completely separate request, hours or days
+    later, after a server restart - nothing here depends on the original upload request still
+    being alive, since the state it needs lives in Postgres (the Elicitation row), not
+    in-process.
+
+    Two concurrent/retried answer submissions for the same elicitation must not both persist
+    (that would duplicate line items) - a plain "is it pending" read-then-write check can't
+    prevent that, since both requests could pass the check before either writes. The atomic
+    claim_pending_elicitation call below is what actually prevents it: only one request can
+    ever win it, and the loser raises ConflictError before touching the bill at all."""
     elicitation = await elicitations_service.get_elicitation(db, user_id, bill_id, elicitation_id)
     if elicitation.status != ElicitationStatus.PENDING:
+        # Fast-path rejection for the common sequential case (already answered) - saves an
+        # LLM call. Not the actual concurrency guard; that's the atomic claim below.
         raise ConflictError(f"elicitation {elicitation_id} is already {elicitation.status.value}")
 
     partial_result = (elicitation.context or {}).get("partial_result", {})
-    merged_result = {**partial_result, **answer, "confidence": 1.0}
+    extracted_answer = await elicitation_answers.parse_elicitation_answer(
+        elicitation.question, partial_result, answer_text
+    )
+    merged_result = {**partial_result, **extracted_answer, "confidence": 1.0}
+    merged_result["line_items"] = _merge_line_items(
+        partial_result.get("line_items") or [], extracted_answer.get("line_items")
+    )
+
+    await elicitations_service.claim_pending_elicitation(db, user_id, bill_id, elicitation_id)
 
     await persist_bill_result(db, user_id, bill_id, merged_result)
     await bills_repo.update(db, user_id, bill_id, status=BillStatus.PENDING)
@@ -306,7 +537,8 @@ async def resume_from_elicitation_answer(
         user_id,
         bill_id,
         elicitation_id,
-        status=ElicitationStatus.ANSWERED,
-        answer=answer,
-        answered_at=datetime.now(UTC),
+        answer={"text": answer_text, "extracted": extracted_answer},
     )
+    # Parsing just resolved (via a human's answer) - continue into categorization, same as
+    # the direct-resolve path in parse_and_persist_bill.
+    await categorizer_service.categorize_and_persist_bill(db, user_id, bill_id)

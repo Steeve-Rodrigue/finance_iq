@@ -1,10 +1,12 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.elicitations import Elicitation
+from app.models.elicitations import Elicitation, ElicitationStatus
 
 
 async def list_by_bill(
@@ -40,6 +42,29 @@ async def create(
     await db.flush()
     await db.refresh(elicitation)
     return elicitation
+
+
+async def claim_pending(
+    db: AsyncSession, user_id: uuid.UUID, bill_id: uuid.UUID, elicitation_id: uuid.UUID
+) -> Elicitation | None:
+    """Atomically flip PENDING -> ANSWERED (a single `UPDATE ... WHERE status = 'pending'`,
+    not a read-then-write) so two concurrent/retried answer submissions can't both pass a
+    plain status check and both go on to persist - only one can ever win this claim. Returns
+    the claimed row, or None if it was already claimed (or never pending) - the caller should
+    treat None as "someone else got there first", not silently proceed."""
+    result = await db.execute(
+        sa_update(Elicitation)
+        .where(
+            Elicitation.id == elicitation_id,
+            Elicitation.user_id == user_id,
+            Elicitation.bill_id == bill_id,
+            Elicitation.status == ElicitationStatus.PENDING,
+        )
+        .values(status=ElicitationStatus.ANSWERED, answered_at=datetime.now(UTC))
+        .returning(Elicitation)
+    )
+    await db.flush()
+    return result.scalar_one_or_none()
 
 
 async def update(

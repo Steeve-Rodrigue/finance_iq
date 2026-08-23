@@ -1,16 +1,18 @@
 """Upload + parser decision loop, with the real Claude Agent SDK call mocked out - no test
 here should ever make a real, paid API call."""
 
+import json
 import shutil
 from collections.abc import AsyncIterator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from httpx import AsyncClient
 
 from app.config import settings
-from app.services import bill_parser_service
+from app.services import bill_parser_service, llm_client
 from tests.helpers import auth_header, signup_and_login
 
 
@@ -53,6 +55,8 @@ def _high_confidence_result(**overrides: Any) -> dict[str, Any]:
         "total_amount": 10.50,
         "amount_due": 10.50,
         "payment_method": "card",
+        "payment_status": "paid",
+        "extraction_strategy": "direct",
         "line_items": [
             {
                 "description": "Bread",
@@ -103,8 +107,11 @@ async def test_upload_high_confidence_succeeds_on_first_attempt(
     bill = results[0]["bill"]
     assert bill["vendor_name_raw"] == "Corner Store"
     assert bill["total_amount"] == "10.50"
-    assert bill["current_stage"] == "categorizing"
+    assert bill["current_stage"] == "auditing"
     assert bill["status"] == "pending"
+    # Regression: these two used to be silently dropped - never in _BILL_FIELDS at all.
+    assert bill["payment_status"] == "paid"
+    assert bill["extraction_strategy"] == "direct"
     assert calls == [bill_parser_service.PARSER_MODEL]
 
     line_items = await client.get(f"/bills/{bill['id']}/line-items/", headers=auth_header(token))
@@ -126,8 +133,62 @@ async def test_upload_retries_on_medium_confidence_then_succeeds(
     response = await _upload(client, token)
     assert response.status_code == 201
     bill = response.json()[0]["bill"]
-    assert bill["current_stage"] == "categorizing"
+    assert bill["current_stage"] == "auditing"
     assert calls == [bill_parser_service.PARSER_MODEL, bill_parser_service.RETRY_MODEL]
+
+
+async def test_upload_recovers_from_malformed_json_on_first_attempt(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A parser response that fails to parse as JSON (e.g. an unescaped quote from garbled
+    OCR text) must not crash run_decision_loop before the retry model ever runs - it should
+    degrade to confidence=0 and retry, same as any other low-confidence first attempt."""
+    calls_made: list[str] = []
+    responses = iter([RuntimeError("invalid JSON from parser: boom"), _high_confidence_result()])
+
+    async def _fake_call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
+        calls_made.append(model)
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr(bill_parser_service, "call_parser", _fake_call_parser)
+
+    token = await signup_and_login(client, "upload-h@example.com", "upload_h")
+    response = await _upload(client, token)
+    assert response.status_code == 201
+    result = response.json()[0]
+    assert result["error"] is None
+    assert result["bill"]["current_stage"] == "auditing"
+    assert calls_made == [bill_parser_service.PARSER_MODEL, bill_parser_service.RETRY_MODEL]
+
+
+async def test_upload_creates_elicitation_when_both_attempts_fail_to_parse(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If even the retry model's response fails to parse, the bill must still resolve the
+    request as an elicitation (non-negotiable #4: never fail silently) - not a raw 500 from
+    an unhandled exception."""
+
+    async def _fake_call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
+        raise RuntimeError("invalid JSON from parser: boom")
+
+    monkeypatch.setattr(bill_parser_service, "call_parser", _fake_call_parser)
+
+    token = await signup_and_login(client, "upload-i@example.com", "upload_i")
+    response = await _upload(client, token)
+    assert response.status_code == 201
+    result = response.json()[0]
+    assert result["error"] is None
+    bill = result["bill"]
+    assert bill["status"] == "flagged"
+
+    elicitations = (
+        await client.get(f"/bills/{bill['id']}/elicitations/", headers=auth_header(token))
+    ).json()
+    assert len(elicitations) == 1
+    assert elicitations[0]["status"] == "pending"
 
 
 async def test_upload_still_low_confidence_after_retry_is_flagged_not_guessed(
@@ -220,3 +281,27 @@ async def test_uploaded_bill_is_cross_user_isolated(
 
     get_resp = await client.get(f"/bills/{bill_id}", headers=auth_header(other_token))
     assert get_resp.status_code == 404
+
+
+async def test_call_parser_sets_extraction_strategy_from_the_real_extraction_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: extraction_strategy used to be computed by pdf_extraction.extract_text and
+    then discarded (only used for a debug log line) - call_parser must actually attach it to
+    the result. Only the model call is mocked here; pdf_extraction.extract_text runs for real
+    against real sample PDFs, so this proves the detection+propagation logic itself, not just
+    that persistence maps a pre-supplied value."""
+
+    async def _fake_create(**kwargs: Any) -> SimpleNamespace:
+        content = json.dumps({"confidence": 0.9, "reasoning": "test"})
+        message = SimpleNamespace(content=content)
+        choice = SimpleNamespace(message=message, finish_reason="stop")
+        return SimpleNamespace(choices=[choice], usage=None)
+
+    monkeypatch.setattr(llm_client.client.chat.completions, "create", _fake_create)
+
+    direct_result = await bill_parser_service.call_parser(Path("data/Invoice3.pdf"), "any-model")
+    assert direct_result["extraction_strategy"] == "direct"
+
+    ocr_result = await bill_parser_service.call_parser(Path("data/Invoice2.pdf"), "any-model")
+    assert ocr_result["extraction_strategy"] == "ocr"

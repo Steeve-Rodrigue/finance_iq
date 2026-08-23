@@ -3,7 +3,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.exceptions import NotFoundError
+from app.exceptions import ConflictError, NotFoundError
 from app.models.elicitations import Elicitation
 from app.repos import bills_repo, elicitations_repo
 
@@ -26,6 +26,20 @@ async def get_elicitation(
     elicitation = await elicitations_repo.get_by_id(db, user_id, elicitation_id)
     if elicitation is None or elicitation.bill_id != bill_id:
         raise NotFoundError(f"elicitation {elicitation_id} not found")
+    return elicitation
+
+
+async def claim_pending_elicitation(
+    db: AsyncSession, user_id: uuid.UUID, bill_id: uuid.UUID, elicitation_id: uuid.UUID
+) -> Elicitation:
+    """Atomically claims a PENDING elicitation (flips it to ANSWERED in one statement) so two
+    concurrent/retried answer submissions can't both persist - see
+    elicitations_repo.claim_pending. Raises ConflictError, not a silent no-op, if it's already
+    been claimed or was never pending - the caller must not proceed with persistence either
+    way."""
+    elicitation = await elicitations_repo.claim_pending(db, user_id, bill_id, elicitation_id)
+    if elicitation is None:
+        raise ConflictError(f"elicitation {elicitation_id} is not pending")
     return elicitation
 
 

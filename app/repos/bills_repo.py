@@ -18,6 +18,25 @@ async def get_by_id(db: AsyncSession, user_id: uuid.UUID, bill_id: uuid.UUID) ->
     return result.scalar_one_or_none()
 
 
+async def list_categorized_by_vendor(
+    db: AsyncSession, user_id: uuid.UUID, vendor_id: uuid.UUID
+) -> list[Bill]:
+    """Past bills from this vendor that already have a category - the categorizer's retry
+    context (roadmap.md Part 6.4: "re-prompt with the user's historical vendor patterns").
+    Eager-loads `category` since the caller reads `.category.name` outside a request context
+    that would otherwise support a lazy load."""
+    result = await db.execute(
+        select(Bill)
+        .where(
+            Bill.user_id == user_id,
+            Bill.vendor_id == vendor_id,
+            Bill.category_id.is_not(None),
+        )
+        .options(selectinload(Bill.category))
+    )
+    return list(result.scalars().all())
+
+
 async def create(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -52,7 +71,6 @@ async def delete(db: AsyncSession, user_id: uuid.UUID, bill_id: uuid.UUID) -> bo
         .where(Bill.user_id == user_id, Bill.id == bill_id)
         .options(
             selectinload(Bill.line_items),
-            selectinload(Bill.flags),
             selectinload(Bill.elicitations),
         )
     )
