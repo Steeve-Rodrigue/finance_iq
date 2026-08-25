@@ -5,6 +5,11 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Dashboard breakpoints (frontend/CLAUDE.md): <850px mobile, 850-1280px tablet, >1280px
+     desktop. Only --breakpoint-md needs overriding - Tailwind's default xl (1280px) already
+     matches the desktop cutoff. */
+  --breakpoint-md: 850px;
+  --breakpoint-xl: 1280px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -49,13 +54,15 @@
 }
 
 :root {
+  /* --primary sampled from docs/image.png (the landing page): the brand gold used for the
+     logo mark, the "IQ" wordmark, and the CTA button. */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(48.533% 0.15006 24.659);
+  --primary: oklch(85.279% 0.15647 76.487);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -73,14 +80,17 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Black sidebar experiment   - independent of the light/dark theme toggle, so these don't
+     reuse .dark's tokens even though the values happen to match. */
+  --sidebar: oklch(9.693% 0.00001 271.152);
+  --sidebar-foreground: oklch(0.985 0 0);
+  /* Linked to --primary (not its own value) so an edit to --primary always applies here too. */
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 .dark {
@@ -90,8 +100,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(41% 0.08407 97.515);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(41.38% 0.26599 266.841);
+  --primary-foreground: oklch(51.568% 0.19965 28.006);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -109,8 +119,9 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  /* Linked to --primary (not its own value) so an edit to --primary always applies here too. */
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
