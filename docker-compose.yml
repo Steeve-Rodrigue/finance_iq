@@ -1,29 +1,38 @@
 services:
   api:
-    build: .
+    build: ./backend
     ports: ["8000:8000"]
-    env_file: .env
-    volumes:                #a enlever
-      - ./app:/app/app     # en production
+    env_file: ./backend/.env
+    volumes: #a enlever
+      - ./backend/app:/app/app # en production
     depends_on:
       db:
         condition: service_healthy
 
+  web:
+    build: ./frontend
+    ports: ["3000:3000"]
+    environment:
+      # The browser calls this directly, so it must be an address the host
+      # machine can reach (not the "api" service DNS name, which only
+      # resolves inside the Docker network).
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    volumes: #a enlever
+      - ./frontend:/app # en production
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api
+
   db:
     image: postgres:17-alpine
-    env_file: .env
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-financeiq}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-financeiq}
-      POSTGRES_DB: ${POSTGRES_DB:-financeiq}
-      POSTGRES_APP_USER: ${POSTGRES_APP_USER:-financeiq_app}
-      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-financeiq_app}
+    env_file: ./backend/.env
     ports: ["5432:5432"]
     volumes:
       - "pgdata:/var/lib/postgresql/data"
-      - "./docker/initdb:/docker-entrypoint-initdb.d:ro"
+      - "./backend/initdb:/docker-entrypoint-initdb.d:ro"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-financeiq}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -32,6 +41,15 @@ services:
     image: adminer:latest
     ports: ["8080:8080"]
     depends_on: ["db"]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:
