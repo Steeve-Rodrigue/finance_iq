@@ -5,11 +5,11 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* Dashboard breakpoints (frontend/CLAUDE.md): <850px mobile, 850-1280px tablet, >1280px
-     desktop. Only --breakpoint-md needs overriding - Tailwind's default xl (1280px) already
-     matches the desktop cutoff. */
+  /* Dashboard breakpoints (frontend/CLAUDE.md): <850px mobile, 850-1000px tablet, >1000px
+     desktop. Both overridden - Tailwind's default xl (1280px) no longer matches the desktop
+     cutoff, which was moved in from 1280px to 1000px. */
   --breakpoint-md: 850px;
-  --breakpoint-xl: 1280px;
+  --breakpoint-xl: 1100px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -40,6 +40,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-top-card: var(--top-card);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -63,6 +64,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(85.279% 0.15647 76.487);
+  --top-card: rgb(243, 242, 242);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -82,7 +84,7 @@
   --radius: 0.625rem;
   /* Black sidebar experiment   - independent of the light/dark theme toggle, so these don't
      reuse .dark's tokens even though the values happen to match. */
-  --sidebar: oklch(9.693% 0.00001 271.152);
+  --sidebar: oklch(30.792% 0.06238 77.527);
   --sidebar-foreground: oklch(0.985 0 0);
   /* Linked to --primary (not its own value) so an edit to --primary always applies here too. */
   --sidebar-primary: var(--primary);
@@ -101,6 +103,7 @@
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(41.38% 0.26599 266.841);
+  --top-card: rgb(37, 28, 10);
   --primary-foreground: oklch(51.568% 0.19965 28.006);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);

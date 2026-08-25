@@ -10,13 +10,13 @@
 Every decision-point agent (parser, categorizer, and eventually the auditor) returns:
 
 ```json
-{ "result": { }, "confidence": 0.0, "reasoning": "why this confidence level" }
+{ "result": {}, "confidence": 0.0, "reasoning": "why this confidence level" }
 ```
 
 In practice `result`'s fields are flattened directly into the returned dict alongside
 `confidence`/`reasoning` (see `bill_parser_service.call_parser`'s and
 `categorizer_service.call_categorizer`'s actual return shape) rather than nested under a
-literal `"result"` key - the schema above is the *contract*, not a literal wire format to copy.
+literal `"result"` key - the schema above is the _contract_, not a literal wire format to copy.
 
 ## The decision loop is one shared function
 
@@ -27,7 +27,7 @@ retry attempt is entirely up to the caller:
 
 - **Parser** (`bill_parser_service.py`): escalate to a stronger model (`PARSER_MODEL` →
   `RETRY_MODEL`), same input.
-- **Categorizer** (`categorizer_service.py`): re-prompt the *same* model tier with an added
+- **Categorizer** (`categorizer_service.py`): re-prompt the _same_ model tier with an added
   signal - this vendor's own past categorization history - not a stronger model.
 - **Auditor** (not built yet): expected to follow the same shape once it exists.
 
@@ -52,10 +52,11 @@ into structured field corrections, which get merged into the stage's own `partia
 function by `elicitation.stage` (`_RESUME_BY_STAGE`) - each agent owns its own
 `resume_*_from_elicitation_answer`, since each stage merges into and persists different data,
 but all of them:
+
 1. Do a fast-path `status != PENDING` check first (cheap rejection, saves an LLM call on the
    common sequential "already answered" case).
 2. Call `elicitations_service.claim_pending_elicitation` - an **atomic** `UPDATE ... WHERE
-   status = 'pending'`, not a read-then-write - immediately before persisting anything. This is
+status = 'pending'`, not a read-then-write - immediately before persisting anything. This is
    the actual concurrency guard: two concurrent/retried answer submissions for the same
    elicitation must not both persist (that would duplicate line items), and a plain status
    check can't prevent that since both requests could pass it before either writes.
@@ -74,7 +75,7 @@ its elicitation-resume counterpart) call `categorizer_service.categorize_and_per
 immediately afterward, continuing the pipeline automatically rather than requiring a separate
 manually-triggered step per stage. Each stage's own persistence function
 (`persist_bill_result`, `persist_categorization_result`) sets `bills.current_stage` to the
-*next* stage on success (`CATEGORIZING`, `AUDITING`) - that's what the next stage's entry
+_next_ stage on success (`CATEGORIZING`, `AUDITING`) - that's what the next stage's entry
 point picks up from, not a separate "what stage are we in" branch.
 
 ## Shared LLM plumbing

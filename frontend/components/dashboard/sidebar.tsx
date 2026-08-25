@@ -1,11 +1,19 @@
 "use client";
 
-import { Landmark, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  Landmark,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Upload,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
-import type { UserRead } from "@/lib/api";
+import { ApiError, uploadBills, type UserRead } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { DASHBOARD_NAV_ITEMS } from "./nav-items";
 
@@ -17,6 +25,20 @@ const COLLAPSED_STORAGE_KEY = "financeiq_sidebar_collapsed";
 
 function clampWidth(value: number): number {
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, value));
+}
+
+// A literal filling pie (conic-gradient wedge), not a spinner or a ring - grows clockwise
+// from empty to a full gold circle as upload progress (real byte-level, from XHR's
+// upload.onprogress in lib/api.ts's uploadBills) advances.
+function UploadPie({ percent }: { percent: number }) {
+  return (
+    <span
+      className="size-4 shrink-0 rounded-full"
+      style={{
+        background: `conic-gradient(var(--sidebar-primary) ${percent}%, var(--sidebar-accent) 0)`,
+      }}
+    />
+  );
 }
 
 type DashboardSidebarProps = {
@@ -37,6 +59,41 @@ export function DashboardSidebar({ user, onLogout }: DashboardSidebarProps) {
   const widthRef = useRef(DEFAULT_WIDTH);
   const draggingRef = useRef(false);
   const [collapsed, setCollapsed] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  function handleUploadClick() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleFilesSelected(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = ""; // allow re-selecting the same file(s) on a later upload
+    if (files.length === 0) return;
+
+    const token = getToken(); // app/dashboard/layout.tsx's auth guard already ensures this
+    if (!token) return; // exists whenever this sidebar is mounted.
+
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      const results = await uploadBills(token, files, setUploadProgress);
+      for (const result of results) {
+        if (result.error) {
+          toast.error(`${result.filename}: ${result.error}`);
+        } else {
+          toast.success(`${result.filename} uploaded`);
+        }
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof ApiError ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => {
     // Reads external stores (localStorage) after mount to avoid an SSR/client mismatch -
@@ -172,6 +229,38 @@ export function DashboardSidebar({ user, onLogout }: DashboardSidebarProps) {
             </li>
           );
         })}
+
+        {/* Upload - right after Line Items (the last nav item), styled the same as the nav
+            links above it since it's now part of that list rather than a separate section.
+            Accessible from every page, not just Bills Explorer (which isn't built yet). */}
+        <li>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            multiple
+            className="hidden"
+            onChange={handleFilesSelected}
+          />
+          <button
+            type="button"
+            onClick={handleUploadClick}
+            disabled={uploading}
+            title="Upload bill"
+            className="flex h-9 w-full items-center justify-center gap-3 rounded-lg px-2 text-sm font-bold text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-60 xl:justify-start xl:px-3"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg xl:size-auto xl:rounded-none">
+              {uploading ? (
+                <UploadPie percent={uploadProgress} />
+              ) : (
+                <Upload className="size-4 shrink-0" />
+              )}
+            </span>
+            <span className="hidden truncate xl:inline">
+              {uploading ? `Uploading ${uploadProgress}%` : "Upload bill"}
+            </span>
+          </button>
+        </li>
       </ul>
 
       {/* Account footer - email + logout, moved down here from the old separate header bar. */}

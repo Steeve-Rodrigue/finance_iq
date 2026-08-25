@@ -11,11 +11,13 @@ Next.js, ECharts (`echarts-for-react`), Tailwind CSS. Backend endpoints live in 
 ## Responsive breakpoints
 
 All pages responsive. Three breakpoints:
+
 - `<850px` — mobile: single column, stacked charts, sidebar collapses to icon bar
 - `850px–1280px` — tablet: 2-column grids, compact sidebar
 - `>1280px` — desktop: full sidebar, multi-column grids
 
 Tailwind config:
+
 ```
 screens: { md: '850px', xl: '1280px' }
 ```
@@ -23,6 +25,7 @@ screens: { md: '850px', xl: '1280px' }
 ## Sidebar
 
 Icon-labeled, no profile/settings. Pages:
+
 - 🏠 Overview
 - 📈 Spend Analytics
 - 🥧 Categories
@@ -37,17 +40,20 @@ Icon-labeled, no profile/settings. Pages:
 ### 🏠 Overview
 
 4 KPI tiles:
+
 - Total spent: current month (name + amount) + previous month complete + delta previous vs the one before. Format: "February 2026 — €1,420 | January — €2,650 | ↑12% vs December"
 - Bills processed: COUNT(bills) current month
 - Pending elicitations: COUNT(elicitations WHERE status = 'pending')
 - Auto-resolved rate: COUNT(bills without elicitation) / COUNT(bills) as %
 
 3 charts:
+
 - Spending trend: line chart, last 6 months fixed, granularity selector (day/week/month/year), configurable point count
 - Top vendors: horizontal bar, top 5 by spend
 - Spending by category: pie/donut
 
 2 sections:
+
 - Recent uploads: last 5-10 bills by created_at (name, vendor, total_amount, confidence, current_stage)
 - Pending questions: 3-5 pending elicitations (bill name, vendor, amount, question text)
 
@@ -133,27 +139,31 @@ Table: columns (description, common_name, quantity, unit_price, line_total, vend
 
 ## CRUD summary
 
-| Entity | Create | Read | Update | Delete |
-|---|---|---|---|---|
-| Bill | Upload (Bills Explorer) | Explorer + Detail | Bill Detail (all fields) | Explorer row, Detail |
-| Line Item | Bill Detail | Detail + Line Items page | Per row | Per row |
-| Category | Categories page | Table + charts | Edit name/slug | Blocked if bills linked |
-| Vendor | — | Table + detail | Edit name/address/key | Blocked if bills linked |
-| Elicitation | — | List | Answer (submit) | — |
+| Entity      | Create                  | Read                     | Update                   | Delete                  |
+| ----------- | ----------------------- | ------------------------ | ------------------------ | ----------------------- |
+| Bill        | Upload (Bills Explorer) | Explorer + Detail        | Bill Detail (all fields) | Explorer row, Detail    |
+| Line Item   | Bill Detail             | Detail + Line Items page | Per row                  | Per row                 |
+| Category    | Categories page         | Table + charts           | Edit name/slug           | Blocked if bills linked |
+| Vendor      | —                       | Table + detail           | Edit name/address/key    | Blocked if bills linked |
+| Elicitation | —                       | List                     | Answer (submit)          | —                       |
 
 ## Build phases
 
 ### 5A — MVP (demo-ready)
+
 Overview, Bills Explorer, Bill Detail, Elicitations (includes answering)
 
 ### 5B — Analytics expansion
-+ Spend Analytics, + Agent Insights
+
+- Spend Analytics, + Agent Insights
 
 ### 5C — Deep dives
-+ Vendors, + Categories
+
+- Vendors, + Categories
 
 ### 5D — Granular analysis
-+ Line Items
+
+- Line Items
 
 ## Schema gaps (not blocking)
 

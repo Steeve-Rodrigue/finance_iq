@@ -18,6 +18,7 @@ The dashboard surfaces two things: where money goes, and how the agent performed
 **3 charts:**
 
 - Spending trend: line chart, 6 derniers mois fixe. Granularité configurable: jour / semaine / mois / année, nombre de points configurable
+use pyecharts
 - Top vendors: bar chart horizontal, top 5 par spend
 - Spending by category: pie/donut chart
 

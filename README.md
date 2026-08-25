@@ -27,7 +27,7 @@ reach a decision point → agent assesses its own confidence
    └─ still uncertain  → ask the user (elicitation) → pause → resume on reply
 ```
 
-Example: an ambiguous charge like `SQ *MARKET77` doesn't get silently miscategorized — the system asks *"I see a $34 charge from 'SQ \*MARKET77' — is this groceries, or something else?"* and remembers the answer for that vendor going forward.
+Example: an ambiguous charge like `SQ *MARKET77` doesn't get silently miscategorized — the system asks _"I see a $34 charge from 'SQ \*MARKET77' — is this groceries, or something else?"_ and remembers the answer for that vendor going forward.
 
 Full rationale, including the two objections this design resolves (privacy, "is it really agentic?"), is in [Part 1](./roadmap.md#part-1--what-this-is) and [Part 2](./roadmap.md#part-2--the-core-decision-loop-not-pipeline) of the roadmap.
 
@@ -66,7 +66,7 @@ See [Part 4](./roadmap.md#part-4--repo-structure) for the full layout with per-f
 
 1. No database query runs without a `user_id` scope. Ever.
 2. Every agent returns `{result, confidence, reasoning}` — never a bare result.
-3. When confidence is low, retry with a *different* approach — not the same call again.
+3. When confidence is low, retry with a _different_ approach — not the same call again.
 4. When still uncertain after retry, ask the user. Never guess silently, never fail silently.
 5. Retries are capped at 2.
 
@@ -74,7 +74,7 @@ See [Part 4](./roadmap.md#part-4--repo-structure) for the full layout with per-f
 
 ## Build plan
 
-The project is built in 7 phases (0–6), plus an optional OpenRouter experiment (Phase E), totaling roughly 13–17 remaining evenings of part-time work (Phases 0-1 already done). The phase that makes this project *agentic* rather than "automated with a fallback error state" is:
+The project is built in 7 phases (0–6), plus an optional OpenRouter experiment (Phase E), totaling roughly 13–17 remaining evenings of part-time work (Phases 0-1 already done). The phase that makes this project _agentic_ rather than "automated with a fallback error state" is:
 
 - **Phase 3 — elicitation:** an ambiguous bill triggers a real question in the UI, the user answers — even after closing and reopening the browser — and the bill completes with no restart.
 

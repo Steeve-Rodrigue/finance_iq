@@ -10,7 +10,7 @@ Any change that removes a decision point and replaces it with hardcoded sequenci
 
 1. No database query runs without a `user_id` scope. Ever.
 2. Every agent returns `{result, confidence, reasoning}` — never a bare result.
-3. When confidence is low, retry with a *different* approach — not the same call again.
+3. When confidence is low, retry with a _different_ approach — not the same call again.
 4. When still uncertain after retry, ask the user. Never guess silently, never fail silently.
 5. Retries are capped at 2.
 
@@ -31,7 +31,7 @@ Python 3.11+, `uv` for deps, FastAPI, SQLAlchemy 2.0 (async) + Alembic, Postgres
 - **Bill** — one uploaded document belonging to one user.
 - **Decision point** — a place where an agent assesses confidence and branches.
 - **Elicitation** — pausing to ask the user a question, then resuming.
-- **Flagged** — surfaced for human attention, distinct from *pending* (awaiting an elicitation answer).
+- **Flagged** — surfaced for human attention, distinct from _pending_ (awaiting an elicitation answer).
 
 ## Build phases
 
@@ -40,7 +40,7 @@ Full detail and Definition-of-Done for each phase lives in `roadmap.md` — this
 0. **Scaffolding** ✅ Done — runnable skeleton: `uv`, Docker Compose (api+db+adminer), ruff, pre-commit, CI, `/health` with a real DB check.
 1. **Auth and data model** ✅ Done — all 7 entities from the ERD, JWT auth, Postgres row-level security (enforced via a dedicated non-superuser role, not just policies), automated cross-user isolation test at the database level.
 2. **Upload, agentic parser, confidence, and retry** — merges what were originally three separate phases (plain-function parser → add confidence → add retry): `notebooks/billsense_agent.ipynb` validated that an agentic parser with `{result, confidence, reasoning}` built in from the start is barely more work than a "plain" one, so build them together. Parser is an `app/services/` function calling `claude_agent_sdk.query()` directly (not a `.claude/agents/*.md` file — see `roadmap.md` Part 4). Retry = escalate to a stronger model (Haiku → Sonnet), capped at 2, not the same call repeated.
-3. **Elicitation: ask the user** — MCP server with elicitation; real pause/resume (no restart); `clarify.html` for pending questions. The branch that makes this agentic, not automated-with-a-fallback. The decision *logic* is already validated in the notebook above — this phase builds the real pause/resume transport, not the logic.
+3. **Elicitation: ask the user** — MCP server with elicitation; real pause/resume (no restart); `clarify.html` for pending questions. The branch that makes this agentic, not automated-with-a-fallback. The decision _logic_ is already validated in the notebook above — this phase builds the real pause/resume transport, not the logic.
 4. **Categorizer and auditor** — same loop reused for two more agents; decision loop refactored into one shared function called by all three.
 5. **Dashboard and demo seeding** — recruiter-facing dashboard; seeded demo account with deliberately ambiguous bills so elicitation visibly triggers.
 6. **Deploy and package** — hosted demo, case study, README reordered outcome-first.

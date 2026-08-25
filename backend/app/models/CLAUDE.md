@@ -37,7 +37,7 @@
   which contradicts this project's multi-tenant model. If a genuinely global uniqueness
   constraint is ever needed, it must be called out explicitly.
 - Foreign keys to another in-scope entity are only given a bidirectional `relationship(...,
-  back_populates=...)` pair when the schema description's ERD actually draws that relationship
+back_populates=...)` pair when the schema description's ERD actually draws that relationship
   arrow. FKs that exist as a column but aren't drawn as a relationship (e.g.
   `bill_line_items.category_id`) get a one-directional `relationship()` with no
   `back_populates` on the other side. `user_id` FKs get a one-directional `relationship()` to
@@ -50,8 +50,8 @@
   back it up.
 - Every table that carries `user_id` (i.e. every table except `users`) must get Postgres
   row-level security when it's created, not as a deferred follow-up: `ALTER TABLE ... ENABLE/
-  FORCE ROW LEVEL SECURITY` plus a `CREATE POLICY <table>_isolation ON <table> USING (user_id =
-  current_setting('app.current_user_id', true)::uuid) WITH CHECK (...)` — see
+FORCE ROW LEVEL SECURITY` plus a `CREATE POLICY <table>_isolation ON <table> USING (user_id =
+current_setting('app.current_user_id', true)::uuid) WITH CHECK (...)` — see
   `app/migrations/versions/28263f87489e_enable_row_level_security.py` for the pattern. The app
   connects as a non-superuser role (`financeiq_app`, see `.env.example` and
   `docker/initdb/01-create-app-role.sh`) specifically so this can't be silently bypassed —
