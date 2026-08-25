@@ -25,7 +25,7 @@ logger = structlog.get_logger()
 PARSER_MODEL = settings.parser_model
 RETRY_MODEL = settings.parser_retry_model
 HIGH_CONFIDENCE_THRESHOLD = 0.85
-LOW_CONFIDENCE_FLOOR = 0.75
+LOW_CONFIDENCE_FLOOR = 0.70
 
 PARSER_PROMPT = """You extract information from an invoice or receipt, given the text \
 extracted from the original PDF below - usually clean, but it may contain OCR recognition \
