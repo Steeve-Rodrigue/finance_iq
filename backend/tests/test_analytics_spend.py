@@ -1,0 +1,292 @@
+from datetime import date
+
+from httpx import AsyncClient
+
+from tests.helpers import auth_header, signup_and_login
+
+
+def _shift_months(d: date, months: int) -> date:
+    total = d.year * 12 + (d.month - 1) + months
+    year, month = divmod(total, 12)
+    return date(year, month + 1, 1)
+
+
+async def _create_vendor(client: AsyncClient, token: str, name: str, key: str):
+    resp = await client.post(
+        "/vendors/", json={"name": name, "key": key}, headers=auth_header(token)
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _create_category(client: AsyncClient, token: str, name: str, slug: str):
+    resp = await client.post(
+        "/categories/", json={"name": name, "slug": slug}, headers=auth_header(token)
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _create_bill(client: AsyncClient, token: str, name: str, **extra):
+    body = {
+        "name": name,
+        "storage_key": f"s3://bucket/{name}.pdf",
+        "file_hash": f"hash-{name}",
+        **extra,
+    }
+    resp = await client.post("/bills/", json=body, headers=auth_header(token))
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _seed_rich_dataset(client: AsyncClient, token: str) -> dict:
+    current_month_start = date.today().replace(day=1)
+    previous_month_start = _shift_months(current_month_start, -1)
+    month_before_previous_start = _shift_months(current_month_start, -2)
+
+    edf = await _create_vendor(client, token, "EDF", "edf")
+    netflix = await _create_vendor(client, token, "Netflix", "netflix")
+    oneoff = await _create_vendor(client, token, "OneOff", "oneoff")
+    utilities = await _create_category(client, token, "Utilities", "utilities")
+
+    edf_current = await _create_bill(
+        client,
+        token,
+        "edf-current",
+        total_amount="100.00",
+        issue_date=current_month_start.isoformat(),
+        vendor_id=edf["id"],
+        category_id=utilities["id"],
+        payment_status="unpaid",
+    )
+    await _create_bill(
+        client,
+        token,
+        "edf-previous",
+        total_amount="100.00",
+        issue_date=previous_month_start.isoformat(),
+        vendor_id=edf["id"],
+        category_id=utilities["id"],
+        payment_status="unpaid",
+    )
+    edf_spike = await _create_bill(
+        client,
+        token,
+        "edf-spike",
+        total_amount="400.00",
+        issue_date=month_before_previous_start.isoformat(),
+        vendor_id=edf["id"],
+        category_id=utilities["id"],
+        payment_status="unpaid",
+    )
+
+    await _create_bill(
+        client,
+        token,
+        "netflix-current",
+        total_amount="15.00",
+        issue_date=current_month_start.isoformat(),
+        vendor_id=netflix["id"],
+        payment_status="unpaid",
+    )
+    await _create_bill(
+        client,
+        token,
+        "netflix-previous",
+        total_amount="15.00",
+        issue_date=previous_month_start.isoformat(),
+        vendor_id=netflix["id"],
+        payment_status="unpaid",
+    )
+    await _create_bill(
+        client,
+        token,
+        "netflix-before-previous",
+        total_amount="14.00",
+        issue_date=month_before_previous_start.isoformat(),
+        vendor_id=netflix["id"],
+        payment_status="unpaid",
+    )
+
+    oneoff_bill = await _create_bill(
+        client,
+        token,
+        "oneoff-current",
+        total_amount="500.00",
+        issue_date=current_month_start.isoformat(),
+        vendor_id=oneoff["id"],
+        payment_status="paid",
+    )
+
+    return {
+        "vendors": {"edf": edf, "netflix": netflix, "oneoff": oneoff},
+        "category": utilities,
+        "edf_current": edf_current,
+        "edf_spike": edf_spike,
+        "oneoff_bill": oneoff_bill,
+        "current_month_start": current_month_start,
+        "previous_month_start": previous_month_start,
+        "month_before_previous_start": month_before_previous_start,
+    }
+
+
+async def test_spend_analytics_empty_state(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-empty@example.com", "spend_empty")
+
+    response = await client.get("/analytics/spend", headers=auth_header(token))
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["kpis"]["total_spent"] == "0"
+    assert body["kpis"]["bills_count"] == 0
+    assert body["kpis"]["highest_bill_amount"] is None
+    assert body["kpis"]["highest_bill_vendor_name"] is None
+    assert body["spending_trend"] == []
+    assert body["recurring_bills"] == []
+    assert body["outliers"] == []
+    assert body["bill_size_distribution"] == []
+
+
+async def test_spend_kpis_and_filters(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-kpi@example.com", "spend_kpi")
+    data = await _seed_rich_dataset(client, token)
+
+    unfiltered = (await client.get("/analytics/spend", headers=auth_header(token))).json()
+    assert unfiltered["kpis"]["total_spent"] == "1144.00"
+    assert unfiltered["kpis"]["bills_count"] == 7
+    assert unfiltered["kpis"]["highest_bill_amount"] == "500.00"
+    assert unfiltered["kpis"]["highest_bill_vendor_name"] == "OneOff"
+
+    by_category = (
+        await client.get(
+            "/analytics/spend",
+            params={"category_id": data["category"]["id"]},
+            headers=auth_header(token),
+        )
+    ).json()
+    assert by_category["kpis"]["total_spent"] == "600.00"
+    assert by_category["kpis"]["bills_count"] == 3
+    assert by_category["kpis"]["highest_bill_amount"] == "400.00"
+
+    by_vendor = (
+        await client.get(
+            "/analytics/spend",
+            params={"vendor_id": data["vendors"]["netflix"]["id"]},
+            headers=auth_header(token),
+        )
+    ).json()
+    assert by_vendor["kpis"]["total_spent"] == "44.00"
+    assert by_vendor["kpis"]["bills_count"] == 3
+
+    by_date = (
+        await client.get(
+            "/analytics/spend",
+            params={"start_date": data["current_month_start"].isoformat()},
+            headers=auth_header(token),
+        )
+    ).json()
+    assert by_date["kpis"]["total_spent"] == "615.00"
+    assert by_date["kpis"]["bills_count"] == 3
+
+
+async def test_spend_breakdowns(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-breakdown@example.com", "spend_breakdown")
+    await _seed_rich_dataset(client, token)
+
+    body = (await client.get("/analytics/spend", headers=auth_header(token))).json()
+
+    by_category = {c["category_name"]: c["total"] for c in body["spending_by_category"]}
+    assert by_category["Utilities"] == "600.00"
+    assert by_category["Uncategorized"] == "544.00"
+
+    top_vendors = {v["vendor_name"]: v["total"] for v in body["top_vendors"]}
+    assert top_vendors == {"EDF": "600.00", "OneOff": "500.00", "Netflix": "44.00"}
+
+    payment_status = {p["payment_status"]: p["total"] for p in body["payment_status_breakdown"]}
+    assert payment_status["unpaid"] == "644.00"
+    assert payment_status["paid"] == "500.00"
+
+
+async def test_spend_recurring_bills(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-recurring@example.com", "spend_recurring")
+    await _seed_rich_dataset(client, token)
+
+    body = (await client.get("/analytics/spend", headers=auth_header(token))).json()
+
+    recurring_names = {r["vendor_name"] for r in body["recurring_bills"]}
+    assert "Netflix" in recurring_names
+    assert "OneOff" not in recurring_names  # only 1 occurrence, not recurring
+    assert "EDF" not in recurring_names  # 100/100/400 varies more than 10%
+
+    netflix_row = next(r for r in body["recurring_bills"] if r["vendor_name"] == "Netflix")
+    assert netflix_row["frequency"] == 3
+
+
+async def test_spend_outliers(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-outliers@example.com", "spend_outliers")
+    data = await _seed_rich_dataset(client, token)
+
+    body = (await client.get("/analytics/spend", headers=auth_header(token))).json()
+
+    assert len(body["outliers"]) > 0
+    top_outlier = body["outliers"][0]
+    assert top_outlier["bill_id"] == data["edf_spike"]["id"]
+    assert top_outlier["total_amount"] == "400.00"
+    assert float(top_outlier["deviation_ratio"]) > 1.0
+
+
+async def test_spend_month_over_month(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-mom@example.com", "spend_mom")
+    await _seed_rich_dataset(client, token)
+
+    body = (await client.get("/analytics/spend", headers=auth_header(token))).json()
+
+    by_vendor = {row["name"]: row for row in body["month_over_month_by_vendor"]}
+    edf_row = by_vendor["EDF"]
+    assert edf_row["current_month"] == "100.00"
+    assert edf_row["previous_month"] == "100.00"
+    assert float(edf_row["delta_pct"]) == 0.0
+
+    by_category = {row["name"]: row for row in body["month_over_month_by_category"]}
+    utilities_row = by_category["Utilities"]
+    assert utilities_row["current_month"] == "100.00"
+    assert utilities_row["previous_month"] == "100.00"
+
+
+async def test_spend_heatmap_histogram_and_velocity_shape(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-shapes@example.com", "spend_shapes")
+    await _seed_rich_dataset(client, token)
+
+    body = (await client.get("/analytics/spend", headers=auth_header(token))).json()
+
+    assert len(body["spending_heatmap"]) > 0
+    for cell in body["spending_heatmap"]:
+        assert 0 <= cell["day_of_week"] <= 6
+        assert 1 <= cell["week_of_month"] <= 5
+
+    assert len(body["bill_size_distribution"]) > 0
+    total_bucketed = sum(b["count"] for b in body["bill_size_distribution"])
+    assert total_bucketed == 7  # every bill with a total_amount lands in exactly one bucket
+
+    assert len(body["spending_velocity"]) > 0
+    assert all(p["day_of_month"] >= 1 for p in body["spending_velocity"])
+
+
+async def test_spend_analytics_cross_user_isolation(client: AsyncClient) -> None:
+    owner_token = await signup_and_login(client, "spend-a@example.com", "spend_a")
+    other_token = await signup_and_login(client, "spend-b@example.com", "spend_b")
+
+    await _create_bill(client, owner_token, "owner-bill", total_amount="900.00")
+
+    other_body = (await client.get("/analytics/spend", headers=auth_header(other_token))).json()
+    assert other_body["kpis"]["total_spent"] == "0"
+    assert other_body["outliers"] == []
+
+
+async def test_spend_analytics_rejects_invalid_granularity(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-gran@example.com", "spend_gran")
+
+    response = await client.get(
+        "/analytics/spend", params={"granularity": "fortnight"}, headers=auth_header(token)
+    )
+    assert response.status_code == 422
