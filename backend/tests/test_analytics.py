@@ -63,7 +63,7 @@ async def test_overview_kpis_and_charts(client: AsyncClient) -> None:
     category_groceries = (
         await client.post(
             "/categories/",
-            json={"name": "Groceries", "slug": "groceries"},
+            json={"name": "Courses", "slug": "courses"},
             headers=auth_header(token),
         )
     ).json()
@@ -116,12 +116,18 @@ async def test_overview_kpis_and_charts(client: AsyncClient) -> None:
     assert kpis["total_spent_current_month"] == "150.00"
     assert kpis["total_spent_previous_month"] == "80.00"
     assert float(kpis["spend_delta_pct"]) == 100.0  # (80 - 40) / 40 * 100
-    assert kpis["bills_processed_current_month"] == 4
+    # Only current-1 and current-2 have an issue_date in the current month - previous-1 and
+    # before-previous-1 were all created "now" (created_at) but issue-dated in earlier
+    # months, so they must not count here.
+    assert kpis["bills_processed_current_month"] == 2
     assert kpis["pending_elicitations"] == 1
     assert float(kpis["auto_resolved_rate"]) == 75.0  # 3 of 4 bills have no elicitation
 
+    # top_vendors is scoped to the "courses" (groceries) category - only current-1 (Acme,
+    # category=courses) qualifies. current-2 (also Acme) has no category and previous-1
+    # (Bravo) has no category either, so neither counts despite having real spend.
     top_vendors = {v["vendor_name"]: v["total"] for v in body["top_vendors"]}
-    assert top_vendors == {"Acme": "150.00", "Bravo": "80.00"}
+    assert top_vendors == {"Acme": "100.00"}
 
     by_category = {c["category_name"]: c["total"] for c in body["spending_by_category"]}
     assert by_category["Groceries"] == "100.00"

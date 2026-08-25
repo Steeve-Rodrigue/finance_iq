@@ -51,10 +51,14 @@ async def get_kpis(db: AsyncSession, user_id: uuid.UUID, today: date | None = No
             (previous_total - month_before_previous_total) / month_before_previous_total * 100
         )
 
+    next_month_start = _shift_months(current_month_start, 1)
     bills_processed = (
         await db.execute(
             select(func.count(Bill.id)).where(
-                Bill.user_id == user_id, Bill.created_at >= current_month_start
+                Bill.user_id == user_id,
+                Bill.issue_date.is_not(None),
+                Bill.issue_date >= current_month_start,
+                Bill.issue_date < next_month_start,
             )
         )
     ).scalar_one()
@@ -97,10 +101,16 @@ async def get_kpis(db: AsyncSession, user_id: uuid.UUID, today: date | None = No
 async def get_top_vendors(
     db: AsyncSession, user_id: uuid.UUID, limit: int = 5
 ) -> list[tuple[str, Decimal]]:
+    # Scoped to the "courses" (groceries) category - see .claude/skills/bill-categories: it's
+    # the categorizer's canonical slug for supermarkets/grocery delivery, not a one-off label,
+    # so every user ends up with a category matching it. A cross-category vendor ranking mixes
+    # a recurring weekly grocery run with e.g. rent, which isn't a meaningful comparison -
+    # groceries-only is the one vendor breakdown that is.
     stmt = (
         select(Vendor.name, func.coalesce(func.sum(Bill.total_amount), 0).label("total"))
         .join(Bill, Bill.vendor_id == Vendor.id)
-        .where(Bill.user_id == user_id)
+        .join(Category, Bill.category_id == Category.id)
+        .where(Bill.user_id == user_id, Category.slug == "courses")
         .group_by(Vendor.id, Vendor.name)
         .order_by(func.sum(Bill.total_amount).desc())
         .limit(limit)

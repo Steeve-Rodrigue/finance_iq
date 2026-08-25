@@ -24,8 +24,8 @@ def _shift_months(d: date, months: int) -> date:
 async def get_overview(
     db: AsyncSession,
     user_id: uuid.UUID,
-    granularity: str = "month",
-    months: int = 6,
+    granularity: str = "day ",
+    months: int = 24,
 ) -> OverviewResponse:
     since = _shift_months(date.today().replace(day=1), -(months - 1))
 
