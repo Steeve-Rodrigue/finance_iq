@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>FinanceIQ - Clarify</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  .card { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  .question { font-weight: 600; margin-bottom: 0.5rem; }
+  textarea { width: 100%; box-sizing: border-box; font-family: monospace; }
+  #login input { display: block; margin: 0.5rem 0; padding: 0.4rem; width: 100%; box-sizing: border-box; }
+  .error { color: #b00020; }
+  .muted { color: #666; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<!-- Phase 3's deliverable is the pause/resume transport, not UI polish - this is a minimal,
+     framework-free page: log in, see pending elicitations, answer one, done. -->
+
+<h1>Pending questions</h1>
+
+<div id="login">
+  <p>Log in to see bills waiting on your answer.</p>
+  <input id="email" type="email" placeholder="email" />
+  <input id="password" type="password" placeholder="password" />
+  <button onclick="login()">Log in</button>
+  <p id="login-error" class="error"></p>
+</div>
+
+<div id="app" style="display:none">
+  <p class="muted"><span id="who"></span> - <a href="#" onclick="logout()">log out</a></p>
+  <div id="list"><p class="muted">Loading...</p></div>
+</div>
+
+<script>
+const API_BASE = "http://localhost:8000";
+let token = localStorage.getItem("financeiq_token") || "";
+
+async function api(path, options = {}) {
+  const res = await fetch(API_BASE + path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: "Bearer " + token } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`${res.status}: ${body}`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function login() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  const errorEl = document.getElementById("login-error");
+  errorEl.textContent = "";
+  try {
+    const data = await api("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    token = data.access_token;
+    localStorage.setItem("financeiq_token", token);
+    showApp(email);
+  } catch (err) {
+    errorEl.textContent = "Login failed: " + err.message;
+  }
+}
+
+function logout() {
+  token = "";
+  localStorage.removeItem("financeiq_token");
+  document.getElementById("app").style.display = "none";
+  document.getElementById("login").style.display = "block";
+}
+
+async function showApp(email) {
+  document.getElementById("login").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("who").textContent = email || "logged in";
+  await loadPending();
+}
+
+async function loadPending() {
+  const listEl = document.getElementById("list");
+  listEl.innerHTML = "<p class='muted'>Loading...</p>";
+
+  // No dedicated "list all my pending elicitations" endpoint - flagged bills are the ones
+  // that might have one, so check those. Fine for this phase's scope; a real dashboard
+  // (Phase 5) would want a purpose-built aggregate endpoint instead.
+  const bills = await api("/bills/");
+  const flagged = bills.filter((b) => b.status === "flagged");
+
+  const pending = [];
+  for (const bill of flagged) {
+    const elicitations = await api(`/bills/${bill.id}/elicitations/`);
+    for (const e of elicitations) {
+      if (e.status === "pending") pending.push({ bill, elicitation: e });
+    }
+  }
+
+  if (pending.length === 0) {
+    listEl.innerHTML = "<p class='muted'>Nothing pending - you're all caught up.</p>";
+    return;
+  }
+
+  listEl.innerHTML = "";
+  for (const { bill, elicitation } of pending) {
+    listEl.appendChild(renderCard(bill, elicitation));
+  }
+}
+
+function renderCard(bill, elicitation) {
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const question = document.createElement("div");
+  question.className = "question";
+  question.textContent = elicitation.question;
+  card.appendChild(question);
+
+  const hint = document.createElement("p");
+  hint.className = "muted";
+  hint.textContent = `Bill: ${bill.name}. Answer in your own words - no JSON needed.`;
+  card.appendChild(hint);
+
+  const textarea = document.createElement("textarea");
+  textarea.rows = 3;
+  textarea.placeholder = "e.g. it's from Atelier du Bois, paid by card";
+  card.appendChild(textarea);
+
+  const errorEl = document.createElement("p");
+  errorEl.className = "error";
+  card.appendChild(errorEl);
+
+  const button = document.createElement("button");
+  button.textContent = "Submit answer";
+  button.onclick = async () => {
+    errorEl.textContent = "";
+    const answerText = textarea.value.trim();
+    if (!answerText) {
+      errorEl.textContent = "Type an answer first.";
+      return;
+    }
+    try {
+      await api(`/bills/${bill.id}/elicitations/${elicitation.id}/answer`, {
+        method: "POST",
+        body: JSON.stringify({ answer_text: answerText }),
+      });
+      await loadPending();
+    } catch (err) {
+      errorEl.textContent = "Submit failed: " + err.message;
+    }
+  };
+  card.appendChild(button);
+
+  return card;
+}
+
+if (token) {
+  showApp();
+}
+</script>
+
+</body>
+</html>
