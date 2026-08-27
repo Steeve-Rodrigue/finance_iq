@@ -27,8 +27,11 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --all-extras --dev
+        working-directory: ./backend
       - run: uv run ruff check .
+        working-directory: ./backend
       - run: uv run ruff format --check .
+        working-directory: ./backend
       - name: "Create restricted app role (services: containers can't mount initdb scripts)"
         run: |
           PGPASSWORD=financeiq psql -h localhost -U financeiq -d financeiq -v ON_ERROR_STOP=1 <<-EOSQL
@@ -40,4 +43,6 @@ jobs:
                   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO financeiq_app;
           EOSQL
       - run: uv run alembic upgrade head
+        working-directory: ./backend
       - run: uv run pytest --cov=app
+        working-directory: ./backend
