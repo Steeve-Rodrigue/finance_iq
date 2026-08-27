@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 
 from httpx import AsyncClient
 
@@ -189,6 +190,49 @@ async def test_spend_kpis_and_filters(client: AsyncClient) -> None:
     assert by_date["kpis"]["bills_count"] == 3
 
 
+async def test_vendor_evolution_respects_granularity(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-vendor-evo@example.com", "spend_vendor_evo")
+    edf = await _create_vendor(client, token, "EDF", "edf")
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+
+    await _create_bill(
+        client,
+        token,
+        "edf-today",
+        total_amount="30.00",
+        issue_date=today.isoformat(),
+        vendor_id=edf["id"],
+    )
+    await _create_bill(
+        client,
+        token,
+        "edf-yesterday",
+        total_amount="20.00",
+        issue_date=yesterday.isoformat(),
+        vendor_id=edf["id"],
+    )
+
+    monthly = (
+        await client.get(
+            "/analytics/spend", params={"granularity": "month"}, headers=auth_header(token)
+        )
+    ).json()
+    edf_monthly = [p for p in monthly["vendor_evolution"] if p["vendor_name"] == "EDF"]
+    assert {p["period"] for p in edf_monthly} == {today.replace(day=1).isoformat()}
+    assert sum(Decimal(p["total"]) for p in edf_monthly) == Decimal("50.00")
+
+    daily = (
+        await client.get(
+            "/analytics/spend", params={"granularity": "day"}, headers=auth_header(token)
+        )
+    ).json()
+    edf_daily = {
+        p["period"]: p["total"] for p in daily["vendor_evolution"] if p["vendor_name"] == "EDF"
+    }
+    assert edf_daily == {today.isoformat(): "30.00", yesterday.isoformat(): "20.00"}
+
+
 async def test_spend_breakdowns(client: AsyncClient) -> None:
     token = await signup_and_login(client, "spend-breakdown@example.com", "spend_breakdown")
     await _seed_rich_dataset(client, token)
@@ -253,6 +297,164 @@ async def test_spend_month_over_month(client: AsyncClient) -> None:
     assert utilities_row["previous_month"] == "100.00"
 
 
+async def test_category_momentum_month_granularity(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-momentum-month@example.com", "spend_momentum_m")
+    data = await _seed_rich_dataset(client, token)
+
+    body = (
+        await client.get(
+            "/analytics/spend/category-momentum",
+            params={"granularity": "month"},
+            headers=auth_header(token),
+        )
+    ).json()
+
+    # Every distinct month present, not just the last two - Utilities has bills in all three
+    # months seeded by _seed_rich_dataset (current, previous, month-before-previous).
+    utilities_points = {
+        p["period"]: p["total"] for p in body["points"] if p["category_name"] == "Utilities"
+    }
+    assert utilities_points == {
+        data["current_month_start"].isoformat(): "100.00",
+        data["previous_month_start"].isoformat(): "100.00",
+        data["month_before_previous_start"].isoformat(): "400.00",
+    }
+
+    filtered = (
+        await client.get(
+            "/analytics/spend/category-momentum",
+            params={"granularity": "month", "vendor_id": data["vendors"]["netflix"]["id"]},
+            headers=auth_header(token),
+        )
+    ).json()
+    filtered_names = {p["category_name"] for p in filtered["points"]}
+    assert filtered_names == {"Uncategorized"}
+
+
+async def test_category_momentum_day_granularity(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-momentum-day@example.com", "spend_momentum_d")
+    groceries = await _create_category(client, token, "Groceries", "groceries")
+    today = date.today()
+    two_days_ago = today - timedelta(days=2)
+
+    await _create_bill(
+        client,
+        token,
+        "groceries-today",
+        total_amount="30.00",
+        issue_date=today.isoformat(),
+        category_id=groceries["id"],
+    )
+    await _create_bill(
+        client,
+        token,
+        "groceries-two-days-ago",
+        total_amount="20.00",
+        issue_date=two_days_ago.isoformat(),
+        category_id=groceries["id"],
+    )
+
+    body = (
+        await client.get(
+            "/analytics/spend/category-momentum",
+            params={"granularity": "day"},
+            headers=auth_header(token),
+        )
+    ).json()
+
+    # Every distinct day present, including the gap day in between with no spend simply absent
+    # (not zero-filled) - group_by naturally excludes empty combos.
+    groceries_points = {
+        p["period"]: p["total"] for p in body["points"] if p["category_name"] == "Groceries"
+    }
+    assert groceries_points == {
+        today.isoformat(): "30.00",
+        two_days_ago.isoformat(): "20.00",
+    }
+
+
+async def test_category_momentum_year_granularity(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-momentum-year@example.com", "spend_momentum_y")
+    groceries = await _create_category(client, token, "Groceries", "groceries")
+    current_year_start = date(date.today().year, 1, 1)
+    previous_year_start = date(date.today().year - 1, 1, 1)
+
+    await _create_bill(
+        client,
+        token,
+        "groceries-this-year",
+        total_amount="120.00",
+        issue_date=current_year_start.isoformat(),
+        category_id=groceries["id"],
+    )
+    await _create_bill(
+        client,
+        token,
+        "groceries-last-year",
+        total_amount="80.00",
+        issue_date=previous_year_start.isoformat(),
+        category_id=groceries["id"],
+    )
+
+    body = (
+        await client.get(
+            "/analytics/spend/category-momentum",
+            params={"granularity": "year"},
+            headers=auth_header(token),
+        )
+    ).json()
+
+    groceries_points = {
+        p["period"]: p["total"] for p in body["points"] if p["category_name"] == "Groceries"
+    }
+    assert groceries_points == {
+        current_year_start.isoformat(): "120.00",
+        previous_year_start.isoformat(): "80.00",
+    }
+
+
+async def test_category_momentum_respects_date_range(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-momentum-range@example.com", "spend_momentum_r")
+    data = await _seed_rich_dataset(client, token)
+
+    body = (
+        await client.get(
+            "/analytics/spend/category-momentum",
+            params={
+                "granularity": "month",
+                "start_date": data["current_month_start"].isoformat(),
+            },
+            headers=auth_header(token),
+        )
+    ).json()
+
+    periods = {p["period"] for p in body["points"]}
+    assert periods == {data["current_month_start"].isoformat()}
+
+
+async def test_category_momentum_rejects_invalid_granularity(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-momentum-gran@example.com", "spend_momentum_g")
+
+    response = await client.get(
+        "/analytics/spend/category-momentum",
+        params={"granularity": "fortnight"},
+        headers=auth_header(token),
+    )
+    assert response.status_code == 422
+
+
+async def test_category_momentum_cross_user_isolation(client: AsyncClient) -> None:
+    owner_token = await signup_and_login(client, "spend-momentum-a@example.com", "spend_mom_a")
+    other_token = await signup_and_login(client, "spend-momentum-b@example.com", "spend_mom_b")
+
+    await _create_bill(client, owner_token, "owner-bill", total_amount="900.00")
+
+    other_body = (
+        await client.get("/analytics/spend/category-momentum", headers=auth_header(other_token))
+    ).json()
+    assert other_body["points"] == []
+
+
 async def test_spend_heatmap_histogram_and_velocity_shape(client: AsyncClient) -> None:
     token = await signup_and_login(client, "spend-shapes@example.com", "spend_shapes")
     await _seed_rich_dataset(client, token)
@@ -260,9 +462,10 @@ async def test_spend_heatmap_histogram_and_velocity_shape(client: AsyncClient) -
     body = (await client.get("/analytics/spend", headers=auth_header(token))).json()
 
     assert len(body["spending_heatmap"]) > 0
+    current_year = date.today().year
     for cell in body["spending_heatmap"]:
-        assert 0 <= cell["day_of_week"] <= 6
-        assert 1 <= cell["week_of_month"] <= 5
+        assert date.fromisoformat(cell["date"]).year == current_year
+        assert Decimal(cell["total"]) > 0
 
     assert len(body["bill_size_distribution"]) > 0
     total_bucketed = sum(b["count"] for b in body["bill_size_distribution"])
@@ -270,6 +473,31 @@ async def test_spend_heatmap_histogram_and_velocity_shape(client: AsyncClient) -
 
     assert len(body["spending_velocity"]) > 0
     assert all(p["day_of_month"] >= 1 for p in body["spending_velocity"])
+
+
+async def test_spend_boxplot_five_number_summary(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "spend-boxplot@example.com", "spend_boxplot")
+    month_start = date.today().replace(day=1)
+
+    for amount in ["10.00", "20.00", "30.00", "40.00", "50.00"]:
+        await _create_bill(
+            client,
+            token,
+            f"boxplot-{amount}",
+            total_amount=amount,
+            issue_date=month_start.isoformat(),
+        )
+
+    body = (await client.get("/analytics/spend", headers=auth_header(token))).json()
+
+    assert len(body["spending_boxplot"]) == 1
+    stats = body["spending_boxplot"][0]
+    assert stats["month"] == month_start.isoformat()
+    assert stats["min"] == "10.00"
+    assert stats["q1"] == "15.00"
+    assert stats["median"] == "30.00"
+    assert stats["q3"] == "45.00"
+    assert stats["max"] == "50.00"
 
 
 async def test_spend_analytics_cross_user_isolation(client: AsyncClient) -> None:

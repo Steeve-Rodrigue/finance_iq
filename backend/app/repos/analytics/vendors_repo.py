@@ -96,9 +96,18 @@ async def get_new_vendors_over_time(db: AsyncSession, user_id: uuid.UUID) -> lis
 async def get_vendor_table(
     db: AsyncSession, user_id: uuid.UUID, filters: VendorFilters
 ) -> list[Row]:
-    # Filters live in the join's ON clause, not WHERE - this is a LEFT JOIN so vendors with zero
-    # bills in the filtered range must still appear with bill_count=0 (see categories_repo's
-    # get_category_table for the same reasoning).
+    # Filters live in the join's ON clause, not WHERE, so a vendor with zero bills in the
+    # filtered range still joins (bill_count=0) rather than dropping out of the GROUP BY
+    # entirely (see categories_repo's get_category_table for the same reasoning). With no
+    # filters active that zero-bill-count row is correct - it's just "this vendor exists,
+    # nothing billed yet". But once a filter narrows the table, a zero-count row means "not
+    # concerned by this filter", not "belongs in this filtered view" - so those rows are
+    # dropped via HAVING, only when a filter is actually set.
+    has_filters = (
+        filters.start_date is not None
+        or filters.end_date is not None
+        or filters.category_id is not None
+    )
     bill_join_conditions = [Bill.vendor_id == Vendor.id, Bill.user_id == user_id]
     if filters.start_date is not None:
         bill_join_conditions.append(Bill.issue_date >= filters.start_date)
@@ -123,6 +132,8 @@ async def get_vendor_table(
         .group_by(Vendor.id, Vendor.name, Vendor.key)
         .order_by(func.coalesce(func.sum(Bill.total_amount), 0).desc())
     )
+    if has_filters:
+        stmt = stmt.having(func.count(Bill.id) > 0)
     result = await db.execute(stmt)
     return list(result)
 

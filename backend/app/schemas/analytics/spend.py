@@ -27,9 +27,8 @@ class VendorEvolutionPoint(BaseModel):
     total: Decimal
 
 
-class HeatmapCell(BaseModel):
-    day_of_week: int
-    week_of_month: int
+class CalendarHeatmapCell(BaseModel):
+    date: date
     total: Decimal
 
 
@@ -79,14 +78,28 @@ class MonthOverMonthRow(BaseModel):
     delta_pct: Decimal | None
 
 
+class CategoryMomentumResponse(BaseModel):
+    points: list[CategoryEvolutionPoint]
+
+
+class BoxplotStats(BaseModel):
+    month: date
+    min: Decimal
+    q1: Decimal
+    median: Decimal
+    q3: Decimal
+    max: Decimal
+
+
 class SpendAnalyticsResponse(BaseModel):
     kpis: SpendKPIs
     spending_trend: list[TrendPoint]
     category_evolution: list[CategoryEvolutionPoint]
     vendor_evolution: list[VendorEvolutionPoint]
-    spending_heatmap: list[HeatmapCell]
+    spending_heatmap: list[CalendarHeatmapCell]
     bill_size_distribution: list[HistogramBucket]
     spending_velocity: list[VelocityPoint]
+    spending_boxplot: list[BoxplotStats]
     spending_by_category: list[CategorySpend]
     top_vendors: list[VendorSpend]
     payment_status_breakdown: list[PaymentStatusBreakdown]

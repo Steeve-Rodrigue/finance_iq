@@ -9,7 +9,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.users import User
 from app.repos.analytics.spend_repo import SpendFilters
-from app.schemas.analytics.spend import SpendAnalyticsResponse
+from app.schemas.analytics.spend import CategoryMomentumResponse, SpendAnalyticsResponse
 from app.services.analytics import spend_service
 
 router = APIRouter()
@@ -29,3 +29,19 @@ async def get_spend_analytics(
         start_date=start_date, end_date=end_date, vendor_id=vendor_id, category_id=category_id
     )
     return await spend_service.get_spend_analytics(db, current_user.id, filters, granularity)
+
+
+@router.get("/spend/category-momentum", response_model=CategoryMomentumResponse)
+async def get_category_momentum(
+    start_date: date | None = None,
+    end_date: date | None = None,
+    granularity: Literal["day", "week", "month", "year"] = "month",
+    vendor_id: UUID | None = None,
+    category_id: UUID | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CategoryMomentumResponse:
+    filters = SpendFilters(
+        start_date=start_date, end_date=end_date, vendor_id=vendor_id, category_id=category_id
+    )
+    return await spend_service.get_category_momentum(db, current_user.id, filters, granularity)

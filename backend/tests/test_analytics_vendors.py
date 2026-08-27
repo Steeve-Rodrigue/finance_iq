@@ -180,6 +180,39 @@ async def test_vendors_charts_and_table(client: AsyncClient) -> None:
     assert empty_row["most_frequent_category"] is None
 
 
+async def test_vendors_table_filtered_excludes_unconcerned_vendors(client: AsyncClient) -> None:
+    token = await signup_and_login(client, "vendors-table-filter@example.com", "vendors_filter")
+    data = await _seed(client, token)
+
+    # category_id filter: only EDF has bills in "Utilities" - Landlord/Netflix/Misc/Empty all
+    # have zero bills matching the filter and must drop out of the table entirely, not show up
+    # as zero-count rows the way the unfiltered table does (see test_vendors_charts_and_table).
+    response = await client.get(
+        "/analytics/vendors",
+        params={"category_id": data["category"]["id"]},
+        headers=auth_header(token),
+    )
+    assert response.status_code == 200
+    table = {row["name"]: row for row in response.json()["vendor_table"]}
+    assert set(table.keys()) == {"EDF"}
+    assert table["EDF"]["bill_count"] == 2
+
+    # date range filter: only bills from the current month are in range - EDF still qualifies
+    # (edf-current), but Landlord/Netflix/Misc/Empty's other-month or zero bills don't.
+    response = await client.get(
+        "/analytics/vendors",
+        params={
+            "start_date": data["current_month_start"].isoformat(),
+            "end_date": data["current_month_start"].isoformat(),
+        },
+        headers=auth_header(token),
+    )
+    assert response.status_code == 200
+    table = {row["name"]: row for row in response.json()["vendor_table"]}
+    assert set(table.keys()) == {"Landlord", "EDF", "Netflix", "Misc"}
+    assert "Empty" not in table
+
+
 async def test_vendors_recurring_detection(client: AsyncClient) -> None:
     token = await signup_and_login(client, "vendors-recurring@example.com", "vendors_recurring")
     await _seed(client, token)

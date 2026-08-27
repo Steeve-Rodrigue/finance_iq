@@ -8,9 +8,11 @@ from app.repos.analytics import spend_repo
 from app.repos.analytics.spend_repo import SpendFilters
 from app.schemas.analytics.overview import CategorySpend, TrendPoint, VendorSpend
 from app.schemas.analytics.spend import (
+    BoxplotStats,
+    CalendarHeatmapCell,
     CategoryEvolutionPoint,
+    CategoryMomentumResponse,
     DocumentTypeSpend,
-    HeatmapCell,
     HistogramBucket,
     MonthOverMonthRow,
     Outlier,
@@ -56,6 +58,43 @@ def _build_histogram(amounts: list[Decimal]) -> list[HistogramBucket]:
         )
         for i, count in enumerate(counts)
     ]
+
+
+def _median(values: list[Decimal]) -> Decimal:
+    n = len(values)
+    mid = n // 2
+    if n % 2 == 0:
+        return (values[mid - 1] + values[mid]) / 2
+    return values[mid]
+
+
+def _build_boxplot(rows: list[tuple[date, Decimal]]) -> list[BoxplotStats]:
+    # Five-number summary per month (min/Q1/median/Q3/max) for the spending distribution
+    # boxplot - Q1/Q3 are the median of the lower/upper half (Tukey's method), not a linear-
+    # interpolation percentile, to keep this dependency-free (no numpy in this backend).
+    by_month: dict[date, list[Decimal]] = {}
+    for month, amount in rows:
+        by_month.setdefault(month, []).append(amount)
+
+    result = []
+    for month in sorted(by_month):
+        amounts = sorted(by_month[month])
+        n = len(amounts)
+        mid = n // 2
+        lower_half = amounts[:mid]
+        upper_half = amounts[mid:] if n % 2 == 0 else amounts[mid + 1 :]
+        median = _median(amounts)
+        result.append(
+            BoxplotStats(
+                month=month,
+                min=amounts[0],
+                q1=_median(lower_half) if lower_half else median,
+                median=median,
+                q3=_median(upper_half) if upper_half else median,
+                max=amounts[-1],
+            )
+        )
+    return result
 
 
 def _build_velocity(
@@ -158,6 +197,23 @@ def _build_month_over_month(rows: list[tuple[date, str, Decimal]]) -> list[Month
     return result
 
 
+async def get_category_momentum(
+    db: AsyncSession, user_id: uuid.UUID, filters: SpendFilters, granularity: str
+) -> CategoryMomentumResponse:
+    # Every period in range, not just the last two - one point per (period, category), same
+    # filters (date range, vendor, category) as the rest of the page. get_category_evolution
+    # already returns exactly this shape; only the granularity varies (this chart follows the
+    # page-top SpendFilters selector, unlike SpendAnalyticsResponse.category_evolution which
+    # stays fixed at month for that now-unused field).
+    rows = await spend_repo.get_category_evolution(db, user_id, filters, granularity)
+    return CategoryMomentumResponse(
+        points=[
+            CategoryEvolutionPoint(period=period, category_name=name, total=total)
+            for period, name, total in rows
+        ]
+    )
+
+
 async def get_spend_analytics(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -169,13 +225,18 @@ async def get_spend_analytics(
     month_before_previous_start = _shift_months(current_month_start, -2)
     current_month_end = _shift_months(current_month_start, 1)
     recurring_since = _shift_months(current_month_start, -(_RECURRING_LOOKBACK_MONTHS - 1))
+    current_year_start = date(date.today().year, 1, 1)
+    current_year_end = date(date.today().year, 12, 31)
 
     kpi_data = await spend_repo.get_kpis(db, user_id, filters)
     trend_rows = await spend_repo.get_spending_trend(db, user_id, filters, granularity)
     category_evolution_rows = await spend_repo.get_category_evolution(db, user_id, filters)
-    vendor_evolution_rows = await spend_repo.get_vendor_evolution(db, user_id, filters)
-    heatmap_rows = await spend_repo.get_spending_heatmap(db, user_id, filters)
+    vendor_evolution_rows = await spend_repo.get_vendor_evolution(db, user_id, filters, granularity)
+    calendar_rows = await spend_repo.get_spending_calendar(
+        db, user_id, filters, current_year_start, current_year_end
+    )
     amounts = await spend_repo.get_bill_amounts(db, user_id, filters)
+    bill_amounts_by_month_rows = await spend_repo.get_bill_amounts_by_month(db, user_id, filters)
     current_daily = await spend_repo.get_daily_totals(db, user_id, filters, current_month_start)
     previous_daily = await spend_repo.get_daily_totals(db, user_id, filters, previous_month_start)
     category_rows = await spend_repo.get_spending_by_category(db, user_id, filters)
@@ -203,11 +264,11 @@ async def get_spend_analytics(
             for period, name, total in vendor_evolution_rows
         ],
         spending_heatmap=[
-            HeatmapCell(day_of_week=dow, week_of_month=wom, total=total)
-            for dow, wom, total in heatmap_rows
+            CalendarHeatmapCell(date=day, total=total) for day, total in calendar_rows
         ],
         bill_size_distribution=_build_histogram(amounts),
         spending_velocity=_build_velocity(current_daily, previous_daily),
+        spending_boxplot=_build_boxplot(bill_amounts_by_month_rows),
         spending_by_category=[
             CategorySpend(category_name=name, total=total) for name, total in category_rows
         ],

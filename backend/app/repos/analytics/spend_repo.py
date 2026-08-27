@@ -85,9 +85,13 @@ async def get_spending_trend(
 
 
 async def get_category_evolution(
-    db: AsyncSession, user_id: uuid.UUID, filters: SpendFilters
+    db: AsyncSession, user_id: uuid.UUID, filters: SpendFilters, granularity: str = "month"
 ) -> list[tuple[date, str, Decimal]]:
-    period = func.date_trunc("month", Bill.issue_date)
+    # granularity is also used by the Category momentum chart's own fetch (spend_service.
+    # get_category_momentum), which follows the page-top SpendFilters granularity selector
+    # (day/week/month/year) rather than being fixed to month like the (now unused)
+    # category_evolution field on SpendAnalyticsResponse still is.
+    period = func.date_trunc(granularity, Bill.issue_date)
     category_name = func.coalesce(Category.name, "Uncategorized")
     stmt = (
         select(
@@ -106,8 +110,16 @@ async def get_category_evolution(
 
 
 async def get_vendor_evolution(
-    db: AsyncSession, user_id: uuid.UUID, filters: SpendFilters, top_n: int = 5
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    filters: SpendFilters,
+    granularity: str = "month",
+    top_n: int = 5,
 ) -> list[tuple[date, str, Decimal]]:
+    # granularity follows the page-top SpendFilters selector (day/week/month/year), same as
+    # get_spending_trend - the top-N vendor selection itself still considers the full filtered
+    # range regardless of granularity, only the time buckets each vendor's spend is grouped
+    # into change.
     top_vendor_ids = (
         (
             await db.execute(
@@ -124,7 +136,7 @@ async def get_vendor_evolution(
     if not top_vendor_ids:
         return []
 
-    period = func.date_trunc("month", Bill.issue_date)
+    period = func.date_trunc(granularity, Bill.issue_date)
     stmt = (
         select(
             period.label("period"),
@@ -140,25 +152,38 @@ async def get_vendor_evolution(
     return [(row.period.date(), row.vendor_name, row.total) for row in result]
 
 
-async def get_spending_heatmap(
-    db: AsyncSession, user_id: uuid.UUID, filters: SpendFilters
-) -> list[tuple[int, int, Decimal]]:
-    day_of_week = cast(func.extract("dow", Bill.issue_date), Integer)
-    # CAST(... AS integer) in Postgres rounds to nearest, not truncates - an explicit floor()
-    # is required here or e.g. day 13 ((13-1)/7 = 1.714) would round up to week 3 instead of
-    # flooring into week 2.
-    week_of_month = cast(func.floor((func.extract("day", Bill.issue_date) - 1) / 7), Integer) + 1
+async def get_spending_calendar(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    filters: SpendFilters,
+    year_start: date,
+    year_end: date,
+) -> list[tuple[date, Decimal]]:
+    # A real annual calendar heatmap (Jan 1 - Dec 31), not a day-of-week x week-of-month
+    # pattern aggregated across all time - so year_start/year_end are explicit bounds here,
+    # deliberately ignoring filters.start_date/end_date the same way get_daily_totals's
+    # velocity helper and get_recurring_candidates do (their own date window, not the page
+    # filter's), while vendor_id/category_id still narrow it like everywhere else.
+    conditions = [
+        Bill.user_id == user_id,
+        Bill.issue_date >= year_start,
+        Bill.issue_date <= year_end,
+    ]
+    if filters.vendor_id is not None:
+        conditions.append(Bill.vendor_id == filters.vendor_id)
+    if filters.category_id is not None:
+        conditions.append(Bill.category_id == filters.category_id)
     stmt = (
         select(
-            day_of_week.label("day_of_week"),
-            week_of_month.label("week_of_month"),
+            Bill.issue_date.label("date"),
             func.coalesce(func.sum(Bill.total_amount), 0).label("total"),
         )
-        .where(*_filter_conditions(user_id, filters), Bill.issue_date.is_not(None))
-        .group_by(day_of_week, week_of_month)
+        .where(*conditions)
+        .group_by(Bill.issue_date)
+        .order_by(Bill.issue_date)
     )
     result = await db.execute(stmt)
-    return [(row.day_of_week, row.week_of_month, row.total) for row in result]
+    return [(row.date, row.total) for row in result]
 
 
 async def get_bill_amounts(
@@ -169,6 +194,26 @@ async def get_bill_amounts(
     )
     result = await db.execute(stmt)
     return [row[0] for row in result]
+
+
+async def get_bill_amounts_by_month(
+    db: AsyncSession, user_id: uuid.UUID, filters: SpendFilters
+) -> list[tuple[date, Decimal]]:
+    # One row per bill (not aggregated) so the service can compute a five-number summary per
+    # month for the spending distribution boxplot - same filter set as get_bill_amounts, just
+    # tagged with its month instead of returned as a flat list.
+    month = func.date_trunc("month", Bill.issue_date)
+    stmt = (
+        select(month.label("month"), Bill.total_amount)
+        .where(
+            *_filter_conditions(user_id, filters),
+            Bill.issue_date.is_not(None),
+            Bill.total_amount.is_not(None),
+        )
+        .order_by(month)
+    )
+    result = await db.execute(stmt)
+    return [(row.month.date(), row.total_amount) for row in result]
 
 
 async def get_daily_totals(
