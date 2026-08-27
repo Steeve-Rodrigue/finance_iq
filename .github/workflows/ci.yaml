@@ -44,5 +44,7 @@ jobs:
           EOSQL
       - run: uv run alembic upgrade head
         working-directory: ./backend
+        env:
+         OPENAI_API_KEY: test-api-key
       - run: uv run pytest --cov=app
         working-directory: ./backend
