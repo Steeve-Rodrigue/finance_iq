@@ -44,8 +44,8 @@ jobs:
           EOSQL
       - run: uv run alembic upgrade head
         working-directory: ./backend
+      - run: uv run pytest --cov=app
+        working-directory: ./backend
         env:
          OPENROUTER_API_KEY: test-api-key
          OPENROUTER_BASE_URL: test-api-url
-      - run: uv run pytest --cov=app
-        working-directory: ./backend
