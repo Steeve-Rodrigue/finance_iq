@@ -41,7 +41,7 @@ Icon-labeled, no profile/settings. Pages:
 
 4 KPI tiles:
 
-- Total spent: current month (name + amount) + previous month complete + delta previous vs the one before. Format: "February 2026 — €1,420 | January — €2,650 | ↑12% vs December"
+- Total spent: current month (name + amount) + previous month complete + delta current vs previous. Format: "February 2026 — €1,420 | January — €2,650 | ↑12% vs January"
 - Bills processed: COUNT(bills) current month
 - Pending elicitations: COUNT(elicitations WHERE status = 'pending')
 - Auto-resolved rate: COUNT(bills without elicitation) / COUNT(bills) as %

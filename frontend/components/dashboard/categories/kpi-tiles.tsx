@@ -14,7 +14,7 @@ type CategoriesKpiTilesProps = {
 // kpis.other_rate is still returned by the API, just not rendered here.
 export function CategoriesKpiTiles({ kpis }: CategoriesKpiTilesProps) {
   return (
-    <div className="grid grid-cols-2 gap-2 xl:grid-cols-3 xl:gap-4">
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 xl:gap-4">
       <KpiTile
         title="Total categories"
         subtitle="Categories in use"

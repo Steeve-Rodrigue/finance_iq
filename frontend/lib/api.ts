@@ -163,6 +163,7 @@ export type OverviewKPIs = {
   bills_processed_current_month: number;
   pending_elicitations: number;
   auto_resolved_rate: string;
+  total_bills: number;
 };
 
 export type TrendPoint = { period: string; total: string };

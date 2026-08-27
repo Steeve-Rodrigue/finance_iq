@@ -18,7 +18,7 @@ function formatConfidence(value: string | null): string {
 // GET /analytics/agent-insights' `kpis` field.
 export function AgentInsightsKpiTiles({ kpis }: AgentInsightsKpiTilesProps) {
   return (
-    <div className="grid grid-cols-2 gap-2 xl:grid-cols-4 xl:gap-4">
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4 xl:gap-4">
       <KpiTile
         title="Avg confidence"
         subtitle="Across all bills"

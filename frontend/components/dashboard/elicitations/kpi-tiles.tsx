@@ -28,7 +28,7 @@ function formatConfidence(value: string | null): string {
 // first 2 (not a separate row) so all 4 sit on one line on desktop.
 export function ElicitationsKpiTiles({ kpis }: ElicitationsKpiTilesProps) {
   return (
-    <div className="grid grid-cols-2 gap-2 xl:grid-cols-4 xl:gap-4">
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4 xl:gap-4">
       <KpiTile
         title="Pending"
         subtitle="Waiting on your input"

@@ -22,7 +22,7 @@ export function SpendAnalyticsSkeleton() {
         <div className="hidden h-px bg-border md:block" />
       </div>
       <Skeleton className="mt-3 -mb-3 h-5 w-28 md:mt-1" />
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4 xl:gap-4">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4 xl:gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton
             key={i}

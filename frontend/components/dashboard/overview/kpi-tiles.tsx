@@ -1,5 +1,4 @@
 import {
-  Calendar,
   CheckCircle2,
   FileCheck2,
   MessageCircleQuestion,
@@ -32,18 +31,15 @@ export function KpiTiles({ kpis }: KpiTilesProps) {
         : TrendingDown;
 
   return (
-    <div className="grid grid-cols-2 gap-2 xl:grid-cols-4 xl:gap-4">
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4 xl:gap-4">
       <KpiTile
-        title="Total spent"
+        title={`Total spent in ${formatMonthLabel(0, { includeYear: true })}`}
         subtitle="Your overall expenses"
         icon={Wallet}
         tint={TINTS.amber}
         value={formatCurrency(kpis.total_spent_current_month)}
         className="motion-safe:delay-100"
       >
-        <KpiChip icon={Calendar} tint={TINTS.amber.chip}>
-          {formatMonthLabel(0, { includeYear: true })}
-        </KpiChip>
         <KpiChip icon={DeltaIcon} tint={TINTS.amber.chip}>
           {formatMonthLabel(-1)} —{" "}
           {formatCurrency(kpis.total_spent_previous_month)}
@@ -53,15 +49,15 @@ export function KpiTiles({ kpis }: KpiTilesProps) {
       </KpiTile>
 
       <KpiTile
-        title="Bills processed"
+        title={`Bills processed in ${formatMonthLabel(0, { includeYear: true })}`}
         subtitle="Uploaded this month"
         icon={FileCheck2}
         tint={TINTS.blue}
         value={String(kpis.bills_processed_current_month)}
         className="motion-safe:delay-150"
       >
-        <KpiChip icon={Calendar} tint={TINTS.blue.chip}>
-          {formatMonthLabel(0, { includeYear: true })}
+        <KpiChip icon={FileCheck2} tint={TINTS.blue.chip}>
+          {kpis.total_bills} total
         </KpiChip>
       </KpiTile>
 

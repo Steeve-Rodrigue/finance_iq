@@ -14,7 +14,7 @@ type LineItemsKpiTilesProps = {
 // an empty cell, same fix as Vendors/Categories' 3-tile rows.
 export function LineItemsKpiTiles({ kpis }: LineItemsKpiTilesProps) {
   return (
-    <div className="grid grid-cols-2 gap-2 xl:grid-cols-3 xl:gap-4">
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 xl:gap-4">
       <KpiTile
         title="Total line items"
         subtitle="Across all bills"
