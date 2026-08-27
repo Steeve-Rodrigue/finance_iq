@@ -81,7 +81,7 @@ export function KpiChip({
   return (
     <span
       className={cn(
-        "flex min-w-0 items-start gap-1.5 rounded-lg px-1.5 py-0.5 text-[11px] font-medium text-foreground xl:px-2 xl:py-1 xl:text-xs",
+        "flex max-w-full min-w-0 items-start gap-1.5 rounded-lg px-1.5 py-0.5 text-[11px] font-medium text-foreground xl:px-2 xl:py-1 xl:text-xs",
         tint,
       )}
     >
@@ -140,7 +140,7 @@ export function KpiTile({
           <Icon className="size-3 xl:size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-semibold text-foreground xl:text-sm">
+          <p className="text-[11px] leading-tight font-semibold text-foreground xl:text-sm">
             {title}
           </p>
           <p className="hidden truncate text-[10px] text-muted-foreground min-[661px]:block xl:text-xs">
@@ -151,13 +151,13 @@ export function KpiTile({
       <div className="relative mt-1 flex flex-wrap items-center justify-between gap-x-1.5 gap-y-1 xl:mt-3">
         <p
           className={cn(
-            "min-w-0 truncate text-base font-extrabold xl:text-3xl",
+            "min-w-0 truncate text-lg font-extrabold md:text-2xl xl:text-4xl",
             tint.value,
           )}
         >
           {value}
         </p>
-        <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+        {children}
       </div>
     </div>
   );

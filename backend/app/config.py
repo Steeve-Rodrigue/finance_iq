@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 120
 
     # Origins allowed to call the API from a browser — the Next.js dev server by default.
     cors_origins: list[str] = ["http://localhost:3000"]

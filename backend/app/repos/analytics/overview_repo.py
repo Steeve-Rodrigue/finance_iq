@@ -36,20 +36,16 @@ async def get_kpis(db: AsyncSession, user_id: uuid.UUID, today: date | None = No
     today = today or date.today()
     current_month_start = today.replace(day=1)
     previous_month_start = _shift_months(current_month_start, -1)
-    month_before_previous_start = _shift_months(current_month_start, -2)
 
-    trend = await get_spending_trend(db, user_id, "month", month_before_previous_start)
+    trend = await get_spending_trend(db, user_id, "month", previous_month_start)
     totals_by_month = dict(trend)
 
     current_total = totals_by_month.get(current_month_start, Decimal("0"))
     previous_total = totals_by_month.get(previous_month_start, Decimal("0"))
-    month_before_previous_total = totals_by_month.get(month_before_previous_start, Decimal("0"))
 
     delta_pct = None
-    if month_before_previous_total:
-        delta_pct = (
-            (previous_total - month_before_previous_total) / month_before_previous_total * 100
-        )
+    if previous_total:
+        delta_pct = (current_total - previous_total) / previous_total * 100
 
     next_month_start = _shift_months(current_month_start, 1)
     bills_processed = (
@@ -95,6 +91,7 @@ async def get_kpis(db: AsyncSession, user_id: uuid.UUID, today: date | None = No
         "bills_processed_current_month": bills_processed,
         "pending_elicitations": pending_elicitations,
         "auto_resolved_rate": auto_resolved_rate,
+        "total_bills": total_bills,
     }
 
 

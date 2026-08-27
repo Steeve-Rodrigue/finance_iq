@@ -8,11 +8,12 @@ from pydantic import BaseModel
 class OverviewKPIs(BaseModel):
     total_spent_current_month: Decimal
     total_spent_previous_month: Decimal
-    # None when there's no month-before-previous data to compare against (e.g. new account).
+    # None when the previous month had no spend to compare against (e.g. new account).
     spend_delta_pct: Decimal | None
     bills_processed_current_month: int
     pending_elicitations: int
     auto_resolved_rate: Decimal
+    total_bills: int
 
 
 class TrendPoint(BaseModel):
