@@ -12,14 +12,14 @@ type SpendKpiTilesProps = {
 // bills count, average bill amount, highest single bill (amount + vendor).
 export function SpendKpiTiles({ kpis }: SpendKpiTilesProps) {
   return (
-    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4 xl:gap-4">
+    <div className="grid grid-cols-2 gap-2 xl:grid-cols-4 xl:gap-4">
       <KpiTile
         title="Total spent"
         subtitle="Matching current filters"
         icon={Wallet}
         tint={TINTS.amber}
         value={formatCurrency(kpis.total_spent)}
-        className="motion-safe:delay-100"
+        className="col-span-2 motion-safe:delay-100 md:col-span-1"
       >
         <KpiChip icon={Wallet} tint={TINTS.amber.chip}>
           all filtered bills
@@ -54,7 +54,7 @@ export function SpendKpiTiles({ kpis }: SpendKpiTilesProps) {
             ? formatCurrency(kpis.highest_bill_amount, { precise: true })
             : "—"
         }
-        className="motion-safe:delay-300"
+        className="col-span-2 motion-safe:delay-300 md:col-span-1"
       >
         {kpis.highest_bill_vendor_name && (
           <KpiChip icon={Crown} tint={TINTS.green.chip}>

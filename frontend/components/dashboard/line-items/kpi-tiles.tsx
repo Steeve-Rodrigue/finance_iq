@@ -10,8 +10,9 @@ type LineItemsKpiTilesProps = {
 
 // frontend/CLAUDE.md's Line Items "KPI tiles (3)": total line items, most purchased item
 // (common_name + count), categorization gap (% without category_id). 3 tiles, not 4 - the
-// last one spans the full row on mobile/tablet (col-span-2 xl:col-span-1) rather than leaving
-// an empty cell, same fix as Vendors/Categories' 3-tile rows.
+// last one spans the full row on tablet (md:col-span-2 xl:col-span-1) rather than leaving an
+// empty cell, same fix as Vendors/Categories' 3-tile rows. Mobile is single-column already, so
+// col-span only matters once md:grid-cols-2 is active.
 export function LineItemsKpiTiles({ kpis }: LineItemsKpiTilesProps) {
   return (
     <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 xl:gap-4">
@@ -49,7 +50,7 @@ export function LineItemsKpiTiles({ kpis }: LineItemsKpiTilesProps) {
         icon={AlertTriangle}
         tint={TINTS.violet}
         value={formatPercent(kpis.categorization_gap_pct)}
-        className="col-span-2 motion-safe:delay-200 xl:col-span-1"
+        className="motion-safe:delay-200 md:col-span-2 xl:col-span-1"
       >
         <KpiChip icon={AlertTriangle} tint={TINTS.violet.chip}>
           needs categorizing

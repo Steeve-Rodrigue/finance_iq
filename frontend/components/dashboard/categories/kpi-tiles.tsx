@@ -51,7 +51,7 @@ export function CategoriesKpiTiles({ kpis }: CategoriesKpiTilesProps) {
         icon={AlertTriangle}
         tint={TINTS.violet}
         value={String(kpis.uncategorized_bills_count)}
-        className="col-span-2 motion-safe:delay-200 xl:col-span-1"
+        className="motion-safe:delay-200 md:col-span-2 xl:col-span-1"
       >
         <KpiChip icon={AlertTriangle} tint={TINTS.violet.chip}>
           needs categorizing

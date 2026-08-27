@@ -49,7 +49,7 @@ export function VendorsKpiTiles({ kpis }: VendorsKpiTilesProps) {
         icon={TrendingUp}
         tint={TINTS.violet}
         value={formatPercent(kpis.vendor_concentration_pct)}
-        className="col-span-2 motion-safe:delay-300 xl:col-span-1"
+        className="motion-safe:delay-300 md:col-span-2 xl:col-span-1"
       >
         <KpiChip icon={TrendingUp} tint={TINTS.violet.chip}>
           top 3 vendors
