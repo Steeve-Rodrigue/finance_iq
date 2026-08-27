@@ -12,6 +12,15 @@ from httpx import AsyncClient
 from app.services import bill_parser_service, llm_client
 from tests.helpers import auth_header, signup_and_login
 
+_DIRECT_PDF = Path("data/Invoice3.pdf")
+_OCR_PDF = Path("data/Invoice2.pdf")
+# data/ is gitignored (real sample bills aren't committed) - CI checkouts don't have these,
+# so this test only runs where they happen to be present locally.
+_skip_without_sample_pdfs = pytest.mark.skipif(
+    not (_DIRECT_PDF.exists() and _OCR_PDF.exists()),
+    reason="Invoice2.pdf and Invoice3.pdf are gitignored, not present in this checkout",
+)
+
 
 def _mock_call_parser(
     monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]
@@ -274,6 +283,7 @@ async def test_uploaded_bill_is_cross_user_isolated(
     assert get_resp.status_code == 404
 
 
+@_skip_without_sample_pdfs
 async def test_call_parser_sets_extraction_strategy_from_the_real_extraction_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -291,8 +301,8 @@ async def test_call_parser_sets_extraction_strategy_from_the_real_extraction_pat
 
     monkeypatch.setattr(llm_client.client.chat.completions, "create", _fake_create)
 
-    direct_result = await bill_parser_service.call_parser(Path("data/Invoice3.pdf"), "any-model")
+    direct_result = await bill_parser_service.call_parser(_DIRECT_PDF, "any-model")
     assert direct_result["extraction_strategy"] == "direct"
 
-    ocr_result = await bill_parser_service.call_parser(Path("data/Invoice2.pdf"), "any-model")
+    ocr_result = await bill_parser_service.call_parser(_OCR_PDF, "any-model")
     assert ocr_result["extraction_strategy"] == "ocr"

@@ -132,7 +132,7 @@ async def test_overview_kpis_and_charts(client: AsyncClient) -> None:
     assert top_vendors == {"Acme": "100.00"}
 
     by_category = {c["category_name"]: c["total"] for c in body["spending_by_category"]}
-    assert by_category["Groceries"] == "100.00"
+    assert by_category["Courses"] == "100.00"
     assert by_category["Uncategorized"] == "170.00"
 
     recent_names = {u["name"] for u in body["recent_uploads"]}

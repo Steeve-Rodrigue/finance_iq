@@ -16,24 +16,34 @@ from app.services import pdf_extraction
 _DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 _TEXT_BASED_PDF = _DATA_DIR / "Invoice3.pdf"
 _SCANNED_PDF = _DATA_DIR / "Invoice2.pdf"
+# data/ is gitignored (real sample bills aren't committed) - CI checkouts don't have these,
+# so these tests only run where they happen to be present locally.
+_skip_without_sample_pdfs = pytest.mark.skipif(
+    not (_TEXT_BASED_PDF.exists() and _SCANNED_PDF.exists()),
+    reason="Invoice2.pdf and Invoice3.pdf are gitignored, not present in this checkout",
+)
 
 
+@_skip_without_sample_pdfs
 async def test_extract_text_direct_on_real_text_based_pdf() -> None:
     text = await pdf_extraction.extract_text_direct(_TEXT_BASED_PDF)
     assert len(text) >= pdf_extraction.MIN_DIRECT_TEXT_CHARS
 
 
+@_skip_without_sample_pdfs
 async def test_extract_text_picks_direct_method_for_text_based_pdf() -> None:
     text, method = await pdf_extraction.extract_text(_TEXT_BASED_PDF)
     assert method == "direct"
     assert len(text) > 0
 
 
+@_skip_without_sample_pdfs
 async def test_extract_text_direct_returns_empty_on_scanned_pdf() -> None:
     text = await pdf_extraction.extract_text_direct(_SCANNED_PDF)
     assert len(text) < pdf_extraction.MIN_DIRECT_TEXT_CHARS
 
 
+@_skip_without_sample_pdfs
 async def test_extract_text_falls_back_to_ocr_on_scanned_pdf() -> None:
     text, method = await pdf_extraction.extract_text(_SCANNED_PDF)
     assert method == "ocr"
