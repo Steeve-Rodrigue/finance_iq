@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import { ApiError, uploadBills, type UserRead } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useUploadProgress } from "@/lib/upload-progress-context";
 import { cn } from "@/lib/utils";
 import { DASHBOARD_NAV_ITEMS } from "./nav-items";
 
@@ -60,8 +61,8 @@ export function DashboardSidebar({ user, onLogout }: DashboardSidebarProps) {
   const draggingRef = useRef(false);
   const [collapsed, setCollapsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const { uploading, progress, beginUpload, setProgress, endUpload } =
+    useUploadProgress();
 
   function handleUploadClick() {
     fileInputRef.current?.click();
@@ -77,10 +78,9 @@ export function DashboardSidebar({ user, onLogout }: DashboardSidebarProps) {
     const token = getToken(); // app/dashboard/layout.tsx's auth guard already ensures this
     if (!token) return; // exists whenever this sidebar is mounted.
 
-    setUploading(true);
-    setUploadProgress(0);
+    beginUpload();
     try {
-      const results = await uploadBills(token, files, setUploadProgress);
+      const results = await uploadBills(token, files, setProgress);
       for (const result of results) {
         if (result.error) {
           toast.error(`${result.filename}: ${result.error}`);
@@ -91,7 +91,7 @@ export function DashboardSidebar({ user, onLogout }: DashboardSidebarProps) {
     } catch (err: unknown) {
       toast.error(err instanceof ApiError ? err.message : "Upload failed.");
     } finally {
-      setUploading(false);
+      endUpload();
     }
   }
 
@@ -253,13 +253,13 @@ export function DashboardSidebar({ user, onLogout }: DashboardSidebarProps) {
           >
             <span className="flex size-8 shrink-0 items-center justify-center rounded-lg xl:size-auto xl:rounded-none">
               {uploading ? (
-                <UploadPie percent={uploadProgress} />
+                <UploadPie percent={progress} />
               ) : (
                 <Upload className="size-4 shrink-0" />
               )}
             </span>
             <span className="hidden truncate xl:inline">
-              {uploading ? `Uploading ${uploadProgress}%` : "Upload bill"}
+              {uploading ? `Uploading ${progress}%` : "Upload bill"}
             </span>
           </button>
         </li>

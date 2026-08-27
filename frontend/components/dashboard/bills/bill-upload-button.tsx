@@ -1,12 +1,13 @@
 "use client";
 
 import { Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ApiError, uploadBills } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useUploadProgress } from "@/lib/upload-progress-context";
 
 // A literal filling pie (conic-gradient wedge) - same treatment as the sidebar's global
 // upload button (components/dashboard/sidebar.tsx's UploadPie), for real byte-level upload
@@ -33,8 +34,8 @@ type BillUploadButtonProps = {
 // into.
 export function BillUploadButton({ onUploaded }: BillUploadButtonProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const { uploading, progress, beginUpload, setProgress, endUpload } =
+    useUploadProgress();
 
   async function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -44,8 +45,7 @@ export function BillUploadButton({ onUploaded }: BillUploadButtonProps) {
     const token = getToken();
     if (!token) return;
 
-    setUploading(true);
-    setProgress(0);
+    beginUpload();
     try {
       const results = await uploadBills(token, files, setProgress);
       let anySucceeded = false;
@@ -61,7 +61,7 @@ export function BillUploadButton({ onUploaded }: BillUploadButtonProps) {
     } catch (err: unknown) {
       toast.error(err instanceof ApiError ? err.message : "Upload failed.");
     } finally {
-      setUploading(false);
+      endUpload();
     }
   }
 
