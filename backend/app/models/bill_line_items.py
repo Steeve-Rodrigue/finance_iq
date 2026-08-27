@@ -10,6 +10,7 @@ from app.database import Base
 if TYPE_CHECKING:
     from app.models.bills import Bill
     from app.models.categories import Category
+    from app.models.subcategories import Subcategory
     from app.models.users import User
 
 
@@ -24,6 +25,11 @@ class BillLineItem(Base):
     # this FK column is listed, so no back_populates is added on the Category side.
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("categories.id"), nullable=True, index=True
+    )
+    # Set by the sub-categorizer agent (app/services/subcategorizer_service.py), always
+    # pointing at the LEAF subcategory (level-1 or level-2) - null until that agent has run.
+    subcategory_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("subcategories.id"), nullable=True, index=True
     )
     # A line item row is only ever created once the parser has extracted it, so its
     # description and line_total are known at creation time -> not nullable. quantity and
@@ -47,3 +53,4 @@ class BillLineItem(Base):
     user: Mapped["User"] = relationship()
     bill: Mapped["Bill"] = relationship(back_populates="line_items")
     category: Mapped["Category | None"] = relationship()
+    subcategory: Mapped["Subcategory | None"] = relationship()

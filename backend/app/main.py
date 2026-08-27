@@ -15,6 +15,7 @@ from app.routers import (
     categories,
     elicitations,
     health,
+    line_items,
     users,
     vendors,
 )
@@ -45,5 +46,6 @@ app.include_router(categories.router)
 app.include_router(vendors.router)
 app.include_router(bills.router)
 app.include_router(bill_line_items.router)
+app.include_router(line_items.router)
 app.include_router(elicitations.router)
 app.include_router(analytics.router)

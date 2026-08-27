@@ -41,9 +41,37 @@ class LineItemTableRow(BaseModel):
     category_name: str | None
 
 
+class SubcategoryLineItemRow(BaseModel):
+    line_item_id: uuid.UUID
+    bill_id: uuid.UUID
+    bill_name: str
+    description: str
+    common_name: str | None
+    quantity: Decimal | None
+    unit_price: Decimal | None
+    line_total: Decimal
+    vendor_name: str | None
+    category_name: str | None
+    subcategory_name: str
+
+
 class LineItemsAnalyticsResponse(BaseModel):
     kpis: LineItemsKPIs
     most_frequent_items: list[ItemFrequency]
     top_items_by_spend: list[ItemSpend]
     unit_price_trend: list[UnitPriceTrendPoint]
     line_item_table: list[LineItemTableRow]
+
+
+class CategoryTreeNode(BaseModel):
+    id: uuid.UUID | None  # None only for the synthetic root
+    name: str
+    total: Decimal
+    pct_of_parent: Decimal  # 0-100
+    children: list["CategoryTreeNode"] = []
+
+
+class CategoryTreeResponse(BaseModel):
+    # A synthetic root ("Total") whose children are the user's top-level categories, so the
+    # whole thing is one tree - matches the shape the radial tree chart consumes directly.
+    root: CategoryTreeNode
