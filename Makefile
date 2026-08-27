@@ -48,3 +48,7 @@ clean: ## Remove caches and bytecode
 # sudo -n ss -ltnp 2>&1
 #sudo systemctl restart docker
 #sudo systemctl stop postgresql@14-main.service
+
+# Dans ton dossier backend/
+#export MIGRATION_DATABASE_URL="postgresql+psycopg://USER:PASS@ep-xxx.neon.tech/financeiq?sslmode=require" \
+#uv run alembic upgrade head
