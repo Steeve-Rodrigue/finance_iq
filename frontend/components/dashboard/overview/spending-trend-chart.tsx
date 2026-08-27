@@ -5,7 +5,7 @@ import { useMemo } from "react";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Granularity, TrendPoint } from "@/lib/api";
-import { useChartColors } from "@/lib/chart-theme";
+import { useChartColors, withAlpha } from "@/lib/chart-theme";
 import { formatCurrency } from "@/lib/format";
 
 import { ChartCard } from "./chart-card";
@@ -69,15 +69,27 @@ export function SpendingTrendChart({
   // page) - with `notMerge`, a fresh object every render forces ECharts to fully re-init and
   // replay its entry animation, which reads as the line disappearing then redrawing on
   // interaction.
-  const option = useMemo(() => {
-    // Point labels get cluttered past ~8 points - the tooltip still shows the exact value
-    // on hover regardless, so density just decides whether it's printed on the chart too.
-    const showPointLabels = data.length > 0 && data.length <= 8;
-
-    return {
+  //
+  // Crosshair tooltip (axisPointer type "cross" + styled label) and the always-on amount
+  // label per point follow docs/vendor's ECharts line-chart template - restyled with this
+  // app's own theme colors (colors.primary/card) rather than the template's grey/black.
+  const option = useMemo(
+    () => ({
       grid: { left: 4, right: 16, top: 36, bottom: 4, containLabel: true },
       tooltip: {
         trigger: "axis" as const,
+        axisPointer: {
+          type: "cross" as const,
+          animation: false,
+          label: {
+            backgroundColor: colors.primary,
+            color: colors.card,
+            borderWidth: 0,
+            shadowBlur: 0,
+            shadowOffsetX: 0,
+            shadowOffsetY: 0,
+          },
+        },
         valueFormatter: (value: number) => formatCurrency(value),
       },
       xAxis: {
@@ -98,6 +110,12 @@ export function SpendingTrendChart({
           fontSize: 11,
           formatter: (value: number) => formatCurrency(value),
         },
+        axisPointer: {
+          label: {
+            formatter: (params: { value: number }) =>
+              formatCurrency(params.value),
+          },
+        },
       },
       series: [
         {
@@ -112,13 +130,28 @@ export function SpendingTrendChart({
             borderColor: colors.card,
             borderWidth: 2,
           },
-          areaStyle: { color: colors.primary, opacity: 0.12 },
+          // Gradient area fill (top-to-bottom, saturated to transparent) - the canonical
+          // ECharts line-chart look (echarts.apache.org/examples, "Line" category) rather
+          // than a flat translucent fill.
+          areaStyle: {
+            color: {
+              type: "linear",
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: withAlpha(colors.primary, 0.35) },
+                { offset: 1, color: withAlpha(colors.primary, 0) },
+              ],
+            },
+          },
           emphasis: {
             scale: 1.4,
             itemStyle: { borderWidth: 3 },
           },
           label: {
-            show: showPointLabels,
+            show: true,
             position: "top" as const,
             formatter: (p: { value: number }) => formatCurrency(p.value),
             fontSize: 10,
@@ -138,8 +171,9 @@ export function SpendingTrendChart({
           },
         },
       ],
-    };
-  }, [data, granularity, colors]);
+    }),
+    [data, granularity, colors],
+  );
 
   return (
     <ChartCard

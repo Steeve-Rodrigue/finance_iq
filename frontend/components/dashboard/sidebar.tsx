@@ -232,7 +232,9 @@ export function DashboardSidebar({ user, onLogout }: DashboardSidebarProps) {
 
         {/* Upload - right after Line Items (the last nav item), styled the same as the nav
             links above it since it's now part of that list rather than a separate section.
-            Accessible from every page, not just Bills Explorer (which isn't built yet). */}
+            Accessible from every page, not just Bills Explorer - which also has its own
+            page-local uploader (BillUploadButton) so its own table refetches on success,
+            something this global one has no way to trigger. */}
         <li>
           <input
             ref={fileInputRef}
