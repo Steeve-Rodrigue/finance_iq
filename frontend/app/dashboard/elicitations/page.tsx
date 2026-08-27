@@ -66,7 +66,7 @@ export default function ElicitationsPage() {
         title="Elicitations"
         description="Questions the agent asked instead of guessing"
       />
-      <SectionHeader title="Key metrics" className="mt-3 -mb-3 md:mt-1" />
+      <SectionHeader title="Key metrics" className="-mt-4 -mb-3 md:-mt-1" />
       <ElicitationsKpiTiles kpis={data.kpis} />
       <SectionHeader
         title="Pending questions"

@@ -146,7 +146,7 @@ export default function LineItemsPage() {
         className="flex flex-col gap-6 transition-opacity"
         style={{ opacity: refreshing ? 0.6 : 1 }}
       >
-        <SectionHeader title="Key metrics" className="mt-3 -mb-3 md:mt-1" />
+        <SectionHeader title="Key metrics" className="-mt-4 -mb-3 md:-mt-1" />
         <LineItemsKpiTiles kpis={data.kpis} />
         <SectionHeader title="Charts" className="-mt-2 -mb-3 md:mt-0" />
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">

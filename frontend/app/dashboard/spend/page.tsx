@@ -127,7 +127,7 @@ export default function SpendAnalyticsPage() {
         className="flex flex-col gap-6 transition-opacity"
         style={{ opacity: refreshing ? 0.6 : 1 }}
       >
-        <SectionHeader title="Key metrics" className="-mb-3" />
+        <SectionHeader title="Key metrics" className="-mt-4 -mb-3 md:-mt-1" />
         <SpendKpiTiles kpis={data.kpis} />
 
         <SpendFilters

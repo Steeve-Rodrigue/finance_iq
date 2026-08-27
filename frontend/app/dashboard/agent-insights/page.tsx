@@ -56,7 +56,7 @@ export default function AgentInsightsPage() {
         title="Agent Insights"
         description="How well the agent is doing its job"
       />
-      <SectionHeader title="Key metrics" className="mt-3 -mb-3 md:mt-1" />
+      <SectionHeader title="Key metrics" className="-mt-4 -mb-3 md:-mt-1" />
       <AgentInsightsKpiTiles kpis={data.kpis} />
       <SectionHeader title="Charts" className="-mt-2 -mb-3 md:mt-0" />
       <ConfidenceTrendChart data={data.confidence_trend} />
