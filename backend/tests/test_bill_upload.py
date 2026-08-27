@@ -2,8 +2,6 @@
 here should ever make a real, paid API call."""
 
 import json
-import shutil
-from collections.abc import AsyncIterator
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -11,15 +9,8 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
-from app.config import settings
 from app.services import bill_parser_service, llm_client
 from tests.helpers import auth_header, signup_and_login
-
-
-@pytest.fixture(autouse=True)
-def _clean_upload_dir() -> AsyncIterator[None]:
-    yield
-    shutil.rmtree(settings.upload_dir, ignore_errors=True)
 
 
 def _mock_call_parser(

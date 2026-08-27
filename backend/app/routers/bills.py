@@ -74,7 +74,7 @@ async def upload_bills(
                 raise ValueError(
                     f"file exceeds the {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB upload limit"
                 )
-            storage_key, file_hash = storage.save_upload(user_id, content)
+            storage_key, file_hash = storage.compute_storage_key(user_id, content)
             bill = await bills_service.create_bill(
                 db,
                 user_id,
@@ -82,9 +82,8 @@ async def upload_bills(
                 storage_key=storage_key,
                 file_hash=file_hash,
             )
-            await bill_parser_service.parse_and_persist_bill(
-                db, user_id, bill.id, storage.resolve_path(storage_key)
-            )
+            with storage.temp_pdf(content) as pdf_path:
+                await bill_parser_service.parse_and_persist_bill(db, user_id, bill.id, pdf_path)
             bill = await bills_service.get_bill(db, user_id, bill.id)
             results.append(BillUploadResult(filename=filename, bill=BillRead.model_validate(bill)))
         except Exception as exc:

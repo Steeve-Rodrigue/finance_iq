@@ -8,8 +8,10 @@ from app.models.bills import BillStage, BillStatus, DocumentType, PaymentStatus
 
 
 def _validate_storage_key(value: str | None) -> str | None:
-    """storage_key is always a flat, server-generated `{user_id}/{sha256}.pdf` path from
-    storage.save_upload - reject anything that could escape upload_dir if a client sets this
+    """storage_key is always a flat, server-generated `{user_id}/{sha256}.pdf` identifier from
+    storage.compute_storage_key - no file lives at this path (the original PDF is only ever
+    read once, via a temp file, during the upload request itself - see storage.temp_pdf), but
+    the same path-traversal-shaped values are still rejected defensively if a client sets this
     field directly via the plain CRUD endpoints."""
     if value is not None and (".." in value or "\\" in value or value.startswith("/")):
         raise ValueError("storage_key must not contain '..', '\\', or start with '/'")

@@ -29,7 +29,6 @@ class Settings(BaseSettings):
     parser_retry_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
     # Bill samples in data/ are French - see Dockerfile's tesseract-ocr-fra package.
     ocr_language: str = "fra"
-    upload_dir: str = "data/uploads"
 
 
 settings = Settings()
