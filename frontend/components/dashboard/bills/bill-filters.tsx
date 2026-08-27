@@ -88,7 +88,7 @@ export function BillFilters({
           value={startDate}
           max={endDate || undefined}
           onChange={(e) => onStartDateChange(e.target.value)}
-          className="h-6 w-24 px-1.5 text-[11px] md:h-8 md:w-32 md:text-sm"
+          className="h-6 w-8 px-1 text-[11px] [&::-webkit-datetime-edit]:hidden md:h-8 md:w-32 md:px-1.5 md:text-sm md:[&::-webkit-datetime-edit]:inline-block"
         />
       </div>
       <div className="flex shrink-0 items-center gap-1">
@@ -101,7 +101,7 @@ export function BillFilters({
           value={endDate}
           min={startDate || undefined}
           onChange={(e) => onEndDateChange(e.target.value)}
-          className="h-6 w-24 px-1.5 text-[11px] md:h-8 md:w-32 md:text-sm"
+          className="h-6 w-8 px-1 text-[11px] [&::-webkit-datetime-edit]:hidden md:h-8 md:w-32 md:px-1.5 md:text-sm md:[&::-webkit-datetime-edit]:inline-block"
         />
       </div>
       <div className="flex shrink-0 items-center gap-1">

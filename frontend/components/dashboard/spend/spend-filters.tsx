@@ -63,7 +63,7 @@ export function SpendFilters({
   const labelClass =
     "text-[10px] md:text-[11px] whitespace-nowrap text-muted-foreground";
   const dateInputClass =
-    "h-6 w-24 px-1.5 text-[11px] md:h-8 md:w-32 md:text-sm";
+    "h-6 w-8 px-1 text-[11px] [&::-webkit-datetime-edit]:hidden md:h-8 md:w-32 md:px-1.5 md:text-sm md:[&::-webkit-datetime-edit]:inline-block";
   const selectClass =
     "h-6 w-24 shrink-0 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground md:h-8 md:w-32 md:rounded-lg md:px-2 md:text-xs";
 
