@@ -98,7 +98,7 @@ export function SpendingTrendChart({
         boundaryGap: false,
         axisLine: { lineStyle: { color: colors.border } },
         axisTick: { show: false },
-        axisLabel: { color: colors.mutedForeground, fontSize: 11 },
+        axisLabel: { color: colors.mutedForeground, fontSize: 8 },
       },
       yAxis: {
         type: "value" as const,
@@ -107,7 +107,7 @@ export function SpendingTrendChart({
         },
         axisLabel: {
           color: colors.mutedForeground,
-          fontSize: 11,
+          fontSize: 8,
           formatter: (value: number) => formatCurrency(value),
         },
         axisPointer: {
@@ -123,12 +123,12 @@ export function SpendingTrendChart({
           data: data.map((p) => Number(p.total)),
           smooth: true,
           symbol: "circle",
-          symbolSize: 7,
-          lineStyle: { color: colors.primary, width: 2 },
+          symbolSize: 6,
+          lineStyle: { color: colors.primary, width: 1.6 },
           itemStyle: {
             color: colors.primary,
             borderColor: colors.card,
-            borderWidth: 2,
+            borderWidth: 1,
           },
           // Gradient area fill (top-to-bottom, saturated to transparent) - the canonical
           // ECharts line-chart look (echarts.apache.org/examples, "Line" category) rather
@@ -141,33 +141,21 @@ export function SpendingTrendChart({
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: withAlpha(colors.primary, 0.35) },
+                { offset: 0, color: withAlpha(colors.primary, 0.8) },
                 { offset: 1, color: withAlpha(colors.primary, 0) },
               ],
             },
           },
           emphasis: {
-            scale: 1.4,
-            itemStyle: { borderWidth: 3 },
+            scale: 0.4,
+            itemStyle: { borderWidth: 1 },
           },
           label: {
             show: true,
             position: "top" as const,
             formatter: (p: { value: number }) => formatCurrency(p.value),
-            fontSize: 10,
+            fontSize: 9,
             color: colors.mutedForeground,
-          },
-          markPoint: {
-            symbol: "pin",
-            symbolSize: 38,
-            itemStyle: { color: colors.primary },
-            label: {
-              formatter: (p: { value: number }) => formatCurrency(p.value),
-              fontSize: 9,
-              fontWeight: "bold" as const,
-              color: colors.card,
-            },
-            data: [{ type: "max" as const, name: "Peak" }],
           },
         },
       ],

@@ -48,7 +48,7 @@ export function SpendingByCategoryChart({
       series: [
         {
           type: "pie" as const,
-          radius: ["22%", "82%"],
+          radius: ["22%", "70%"],
           center: ["50%", "40%"],
           roseType: "radius" as const,
           itemStyle: {

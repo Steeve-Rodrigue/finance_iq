@@ -68,7 +68,7 @@ export function SpendingTrendChart({
         boundaryGap: false,
         axisLine: { lineStyle: { color: colors.border } },
         axisTick: { show: false },
-        axisLabel: { color: colors.mutedForeground, fontSize: 11 },
+        axisLabel: { color: colors.mutedForeground, fontSize: 8 },
       },
       yAxis: {
         type: "value" as const,
@@ -77,7 +77,7 @@ export function SpendingTrendChart({
         },
         axisLabel: {
           color: colors.mutedForeground,
-          fontSize: 11,
+          fontSize: 8,
           formatter: (value: number) => formatCurrency(value),
         },
         axisPointer: {
@@ -93,12 +93,12 @@ export function SpendingTrendChart({
           data: data.map((p) => Number(p.total)),
           smooth: true,
           symbol: "circle",
-          symbolSize: 7,
+          symbolSize: 5,
           lineStyle: { color: colors.primary, width: 2 },
           itemStyle: {
             color: colors.primary,
             borderColor: colors.card,
-            borderWidth: 2,
+            borderWidth: 1.6,
           },
           areaStyle: {
             color: {
@@ -108,7 +108,7 @@ export function SpendingTrendChart({
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: withAlpha(colors.primary, 0.35) },
+                { offset: 0, color: withAlpha(colors.primary, 0.5) },
                 { offset: 1, color: withAlpha(colors.primary, 0) },
               ],
             },

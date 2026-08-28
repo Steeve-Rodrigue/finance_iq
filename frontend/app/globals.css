@@ -52,6 +52,26 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --animate-scan-sweep: scan-sweep 2.4s ease-in-out infinite;
+}
+
+/* Landing page InsightsAnimation's "Scanning" phase - a gold beam sweeping down a flat
+   document mockup, looping. Only custom keyframe in this file so far. */
+@keyframes scan-sweep {
+  0% {
+    transform: translateY(-10%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110%);
+    opacity: 0;
+  }
 }
 
 :root {

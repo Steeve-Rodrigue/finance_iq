@@ -52,14 +52,14 @@ export function TopVendorsChart({ data, className }: TopVendorsChartProps) {
       series: [
         {
           type: "pie" as const,
-          radius: ["22%", "82%"],
+          radius: ["22%", "75%"],
           center: ["50%", "40%"],
           roseType: "radius" as const,
           itemStyle: {
             borderColor: colors.card,
-            borderWidth: 1,
-            shadowBlur: 8,
-            shadowColor: "rgba(0, 0, 0, 0.25)",
+            borderWidth: 0.5,
+            shadowBlur: 10,
+            shadowColor: "rgba(0, 0, 0, 0.28)",
           },
           label: { show: false },
           labelLine: { show: false },
