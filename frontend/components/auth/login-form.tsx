@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,11 +20,7 @@ import { ApiError, login } from "@/lib/api";
 import { setToken } from "@/lib/auth";
 import { loginSchema, type LoginValues } from "@/lib/validation";
 
-export function LoginForm({
-  onSwitchToSignup,
-}: {
-  onSwitchToSignup: () => void;
-}) {
+export function LoginForm() {
   const router = useRouter();
   const {
     register,
@@ -82,16 +79,13 @@ export function LoginForm({
         {isSubmitting ? "Signing in…" : "Sign in"}
       </Button>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{" "}
-        <button
-          type="button"
-          onClick={onSwitchToSignup}
-          className="font-medium text-primary underline-offset-4 hover:underline"
-        >
-          Create one
-        </button>
-      </p>
+      <Link
+        href="/"
+        className="flex items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-3.5" />
+        Back to landing page
+      </Link>
     </form>
   );
 }

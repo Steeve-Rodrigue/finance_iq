@@ -1,0 +1,29 @@
+"use client";
+
+import { PlayCircle } from "lucide-react";
+import { toast } from "sonner";
+
+import { buttonVariants } from "@/components/ui/button";
+
+// Anticipates frontend/CLAUDE.md's Phase 5 "seeded demo account with deliberately ambiguous
+// bills" - not built yet, so this can't log anyone into a real demo account. The button is
+// real now (not a dead/fake link) so the landing page's shape is right ahead of that backend
+// work; clicking it is honest about not being ready yet instead of silently doing nothing or
+// routing somewhere misleading.
+export function DemoButton() {
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        toast.info("The live demo is coming soon - check back shortly.")
+      }
+      className={buttonVariants({
+        variant: "outline",
+        className: "h-11 gap-2 px-6 text-base",
+      })}
+    >
+      <PlayCircle className="size-4" />
+      Try the demo
+    </button>
+  );
+}

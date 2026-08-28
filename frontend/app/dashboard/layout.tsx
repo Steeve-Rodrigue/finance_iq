@@ -19,7 +19,7 @@ export default function DashboardLayout({
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.replace("/");
+      router.replace("/login");
       return;
     }
 
@@ -29,7 +29,7 @@ export default function DashboardLayout({
         if (error instanceof ApiError && error.status === 401) {
           clearToken();
         }
-        router.replace("/");
+        router.replace("/login");
       });
   }, [router]);
 

@@ -1,4 +1,5 @@
 import { Landmark } from "lucide-react";
+import Link from "next/link";
 
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -15,14 +16,17 @@ export function AuthCard({ children }: { children: React.ReactNode }) {
 
       <Card className="relative z-10 w-full max-w-md rounded-2xl border-border/60 bg-card/80 shadow-xl backdrop-blur-md">
         <CardContent className="flex flex-col gap-4 p-5 sm:gap-6 sm:p-8">
-          <div className="flex flex-col items-center gap-2 text-center animate-in fade-in duration-500 sm:gap-3">
+          <Link
+            href="/"
+            className="flex flex-col items-center gap-2 text-center animate-in fade-in duration-500 sm:gap-3"
+          >
             <div className="animate-in zoom-in flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg duration-500 sm:size-14">
               <Landmark className="size-6 sm:size-7" />
             </div>
             <h1 className="text-2xl font-bold text-primary sm:text-3xl">
               FinanceIQ
             </h1>
-          </div>
+          </Link>
           {children}
         </CardContent>
       </Card>
