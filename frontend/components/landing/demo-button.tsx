@@ -19,10 +19,11 @@ export function DemoButton() {
       }
       className={buttonVariants({
         variant: "outline",
-        className: "h-11 gap-2 px-6 text-base",
+        className:
+          "h-9 gap-1.5 px-4 text-xs md:h-12 md:gap-2 md:px-6 md:text-sm xl:h-14 xl:px-8 xl:text-base",
       })}
     >
-      <PlayCircle className="size-4" />
+      <PlayCircle className="size-3.5 md:size-4" />
       Try the demo
     </button>
   );
