@@ -59,42 +59,42 @@ export default function LandingPage() {
       <div className="relative z-10 flex flex-1 items-center md:items-start">
         <div className="grid w-full md:grid-cols-[4fr_3fr]">
           <div className="mx-auto flex w-full max-w-lg flex-col items-center px-14 py-16 text-center md:mx-auto md:max-w-2xl md:items-center md:py-1 md:px-8! md:pt-16! md:text-center xl:max-w-4xl xl:px-50! xl:pt-30!">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-primary uppercase md:gap-2 md:px-4 md:py-1.5 md:text-xs xl:px-5 xl:py-2 xl:text-sm">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs font-semibold tracking-wide text-primary uppercase md:gap-2 md:px-4 md:py-1.5 md:text-xs xl:px-5 xl:py-2 xl:text-sm">
               <span className="size-1 rounded-full bg-primary md:size-2 xl:size-2.5" />
               Agentic AI · Bill Tracking
             </span>
 
-            <h1 className="mt-6 text-3xl font-extrabold tracking-tight text-foreground sm:text-6xl md:mt-8 md:text-6xl xl:mt-10 xl:text-7xl">
+            <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-foreground sm:text-6xl md:mt-8 md:text-6xl xl:mt-10 xl:text-7xl">
               Finance<span className="text-primary">IQ</span>
             </h1>
 
-            <p className="mt-3 text-sm text-primary/80 italic md:mt-4 md:text-lg xl:mt-5 xl:text-xl">
+            <p className="mt-3 text-base text-primary/80 italic md:mt-4 md:text-lg xl:mt-5 xl:text-xl">
               Agentic intelligence for every bill you upload.
             </p>
 
-            <h2 className="mt-6 text-xl font-bold text-foreground sm:text-4xl md:mt-8 md:text-4xl xl:mt-10 xl:text-5xl">
+            <h2 className="mt-6 text-2xl font-bold text-foreground sm:text-4xl md:mt-8 md:text-4xl xl:mt-10 xl:text-5xl">
               Every bill, finally understood.
             </h2>
 
-            <p className="mt-6 max-w-md text-xs leading-relaxed text-muted-foreground md:mt-8 md:max-w-lg md:text-base xl:mt-10 xl:max-w-xl xl:text-lg">
+            <p className="mt-6 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-8 md:max-w-lg md:text-base xl:mt-10 xl:max-w-xl xl:text-lg">
               FinanceIQ&apos;s agents parse, categorize, and audit every bill.
               Asking you directly whenever they aren&apos;t confident, instead
               of guessing.
             </p>
 
-            <div className="mt-6 flex flex-nowrap items-center justify-center gap-0.5 text-[10px] font-semibold text-foreground sm:gap-2.5 sm:text-sm md:mt-10 md:text-sm xl:mt-12 xl:text-base">
+            <div className="mt-6 flex flex-nowrap items-center justify-center gap-1 text-xs font-semibold text-foreground sm:gap-2.5 sm:text-sm md:mt-10 md:text-sm xl:mt-12 xl:text-base">
               {STEPS.map(({ label, icon: Icon }, i) => (
                 <span
                   key={label}
-                  className="flex shrink-0 items-center gap-0.5 sm:gap-2.5"
+                  className="flex shrink-0 items-center gap-1 sm:gap-2.5"
                 >
                   {i > 0 && (
                     <ArrowRight
                       aria-hidden
-                      className="size-2.5 shrink-0 text-primary/50 sm:size-4 md:size-5"
+                      className="size-3 shrink-0 text-primary/50 sm:size-4 md:size-5"
                     />
                   )}
-                  <span className="flex items-center gap-1 rounded-full border border-primary/25 bg-card/70 px-1.5 py-0.5 whitespace-nowrap shadow-sm sm:gap-1.5 sm:px-3 sm:py-1.5 md:gap-2 md:px-4 md:py-2 xl:px-5 xl:py-2.5">
+                  <span className="flex items-center gap-1 rounded-full border border-primary/25 bg-card/70 px-2 py-0.5 whitespace-nowrap shadow-sm sm:gap-1.5 sm:px-3 sm:py-1.5 md:gap-2 md:px-4 md:py-2 xl:px-5 xl:py-2.5">
                     <Icon
                       aria-hidden
                       className="hidden size-3.5 shrink-0 text-primary sm:block md:size-4 xl:size-5"
@@ -110,7 +110,7 @@ export default function LandingPage() {
                 href="/login"
                 className={buttonVariants({
                   className:
-                    "h-9 gap-1.5 px-4 text-xs md:h-12 md:gap-2 md:px-6 md:text-sm xl:h-14 xl:px-8 xl:text-base",
+                    "h-10 gap-1.5 px-4 text-sm md:h-12 md:gap-2 md:px-6 md:text-sm xl:h-14 xl:px-8 xl:text-base",
                 })}
               >
                 Sign in
@@ -121,7 +121,7 @@ export default function LandingPage() {
                 className={buttonVariants({
                   variant: "outline",
                   className:
-                    "h-9 px-4 text-xs md:h-12 md:px-6 md:text-sm xl:h-14 xl:px-8 xl:text-base",
+                    "h-10 px-4 text-sm md:h-12 md:px-6 md:text-sm xl:h-14 xl:px-8 xl:text-base",
                 })}
               >
                 Sign up
