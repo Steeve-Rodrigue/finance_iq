@@ -123,12 +123,12 @@ export function SpendingTrendChart({
           data: data.map((p) => Number(p.total)),
           smooth: true,
           symbol: "circle",
-          symbolSize: 6,
-          lineStyle: { color: colors.primary, width: 1.6 },
+          symbolSize: 3,
+          lineStyle: { color: colors.primary, width: 1 },
           itemStyle: {
             color: colors.primary,
             borderColor: colors.card,
-            borderWidth: 1,
+            borderWidth: 0.5,
           },
           // Gradient area fill (top-to-bottom, saturated to transparent) - the canonical
           // ECharts line-chart look (echarts.apache.org/examples, "Line" category) rather
