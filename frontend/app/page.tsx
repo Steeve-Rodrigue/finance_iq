@@ -8,6 +8,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { DemoButton } from "@/components/landing/demo-button";
+import { InsightsAnimation } from "@/components/landing/insights-animation";
 import { buttonVariants } from "@/components/ui/button";
 
 const STEPS = [
@@ -23,8 +24,8 @@ const STEPS = [
 // progressively on top of this.
 //
 // Layout follows docs/image.png's reference: hero copy pinned to the left column at md+ (not
-// centered) - the right half is left empty on purpose, reserved for an animation that isn't
-// built yet. The left-to-right white->transparent gradient already does double duty as both
+// centered), InsightsAnimation (components/landing/insights-animation.tsx) in the right
+// column. The left-to-right white->transparent gradient already does double duty as both
 // text-legibility contrast and the visual "left column" boundary.
 export default function LandingPage() {
   return (
@@ -56,9 +57,9 @@ export default function LandingPage() {
           empty, reserved for the animation. Type scale and spacing grow with the breakpoints
           too (not just the container), so the block actually fills that 70% instead of
           floating as a small fixed-size island inside it. */}
-      <div className="relative z-10 flex flex-1 items-center md:items-start">
-        <div className="grid w-full md:grid-cols-[4fr_3fr]">
-          <div className="mx-auto flex w-full max-w-lg flex-col items-center px-14 py-16 text-center md:mx-auto md:max-w-2xl md:items-center md:py-1 md:px-8! md:pt-16! md:text-center xl:max-w-4xl xl:px-50! xl:pt-30!">
+      <div className="relative z-10 flex flex-1 items-center md:items-stretch">
+        <div className="grid w-full md:grid-cols-[4.5fr_3fr]">
+          <div className="mx-auto flex w-full max-w-lg flex-col items-center px-14 py-16 text-center md:mx-auto md:max-w-2xl md:items-center md:py-1 md:px-8! md:pt-16! md:text-center xl:max-w-4xl xl:px-50! xl:pt-35!">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs font-semibold tracking-wide text-primary uppercase md:gap-2 md:px-4 md:py-1.5 md:text-xs xl:px-5 xl:py-2 xl:text-sm">
               <span className="size-1 rounded-full bg-primary md:size-2 xl:size-2.5" />
               Agentic AI · Bill Tracking
@@ -129,7 +130,12 @@ export default function LandingPage() {
               <DemoButton />
             </div>
           </div>
-          <div aria-hidden className="hidden md:block" />
+          <div
+            aria-hidden
+            className="hidden items-center justify-start md:flex md:py-4 md:pr-8 md:pl-0 xl:pr-12 xl:pl-0"
+          >
+            <InsightsAnimation className="h-[70%] w-[80%] max-w-xl xl:max-w-2xl" />
+          </div>
         </div>
       </div>
     </div>
