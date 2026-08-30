@@ -1,3 +1,7 @@
+import { isDemoToken } from "@/lib/demo/demo-mode";
+import { demoRequest } from "@/lib/demo/demo-router";
+import { demoUploadBills } from "@/lib/demo/demo-upload";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
@@ -29,7 +33,20 @@ async function parseErrorMessage(response: Response): Promise<string> {
   return "Something went wrong. Please try again.";
 }
 
+// Every caller attaches `Authorization: Bearer <token>` as a plain header object (never a
+// Headers instance) - see any exported function below. Demo mode's sentinel token rides along
+// in that same header, so this is the one place request() needs to recognize it.
+function bearerToken(init?: RequestInit): string | null {
+  const headers = init?.headers as Record<string, string> | undefined;
+  const value = headers?.Authorization;
+  return value?.startsWith("Bearer ") ? value.slice("Bearer ".length) : null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isDemoToken(bearerToken(init))) {
+    return demoRequest<T>(path, init);
+  }
+
   // FormData bodies (file uploads) must NOT get a manual Content-Type - the browser sets its
   // own with the multipart boundary parameter, which a fixed "application/json" would clobber.
   const isFormData = init?.body instanceof FormData;
@@ -374,6 +391,8 @@ export function uploadBills(
   files: File[],
   onProgress?: (percent: number) => void,
 ): Promise<BillUploadResult[]> {
+  if (isDemoToken(token)) return demoUploadBills(files, onProgress);
+
   const formData = new FormData();
   for (const file of files) formData.append("files", file);
 
@@ -632,6 +651,55 @@ export function deleteBill(token: string, billId: string): Promise<void> {
   return request<void>(`/bills/${billId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+// backend/app/schemas/bills.py's full BillRead - unlike the list-trimmed BillRead above, this
+// is what BillEditDialog fetches fresh on open (GET /bills/{id}) since the fields it edits
+// (due_date, payment_status) aren't in the trimmed list type.
+export type BillFullRead = {
+  id: string;
+  category_id: string | null;
+  vendor_id: string | null;
+  name: string;
+  invoice_number: string | null;
+  vendor_name_raw: string | null;
+  issue_date: string | null;
+  due_date: string | null;
+  total_amount: string | null;
+  currency: string | null;
+  status: string;
+  payment_status: string;
+  confidence: string | null;
+};
+
+export function getBill(token: string, billId: string): Promise<BillFullRead> {
+  return request<BillFullRead>(`/bills/${billId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export type BillUpdateBody = {
+  name?: string;
+  invoice_number?: string | null;
+  issue_date?: string | null;
+  due_date?: string | null;
+  total_amount?: string | null;
+  category_id?: string | null;
+  vendor_id?: string | null;
+  status?: string;
+  payment_status?: string;
+};
+
+export function updateBill(
+  token: string,
+  billId: string,
+  body: BillUpdateBody,
+): Promise<BillRead> {
+  return request<BillRead>(`/bills/${billId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
   });
 }
 

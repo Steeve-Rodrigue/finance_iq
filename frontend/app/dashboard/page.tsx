@@ -19,6 +19,7 @@ import {
   type OverviewResponse,
 } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useUploadProgress } from "@/lib/upload-progress-context";
 
 export default function OverviewPage() {
   const [data, setData] = useState<OverviewResponse | null>(null);
@@ -30,6 +31,10 @@ export default function OverviewPage() {
   const [granularity, setGranularity] = useState<Granularity>("day");
   const [points, setPoints] = useState(24);
   const [trendLoading, setTrendLoading] = useState(false);
+  // Also refetches when an upload finishes from the sidebar's global uploader (see
+  // upload-progress-context.tsx) - otherwise KPIs/recent uploads/pending questions here stay
+  // stale until the user navigates away and back.
+  const { uploadVersion } = useUploadProgress();
 
   useEffect(() => {
     const token = getToken(); // app/dashboard/layout.tsx's auth guard already ensures this
@@ -60,7 +65,7 @@ export default function OverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [granularity, points]);
+  }, [granularity, points, uploadVersion]);
 
   if (error) {
     // Not ComingSoon - its "coming soon" copy would misrepresent a real fetch failure as an

@@ -30,11 +30,14 @@ function formatMonthTick(period: string): string {
   }).format(new Date(period));
 }
 
-// frontend/CLAUDE.md's Categories "category evolution" chart: stacked area chart by month -
-// how categories shift over time. The API returns a tidy list of {period, category_name,
-// total} rows (docs/vendor), so this pivots into one stacked-area series per category aligned
-// to a shared, sorted set of periods, filling any category/period combination with no bills as
-// 0 rather than leaving a gap in the stack.
+// docs/a's ECharts "Income of Germany and France since 1950" template - one unstacked line
+// per series with no point markers and hover highlighting the whole series. Adapted from that
+// template's per-country dataset+transform (irrelevant here - the API already returns a tidy
+// {period, category_name, total} list, so the per-category series are pivoted out in JS
+// instead) to one line per category, replacing the chart's previous stacked-area look. Series
+// are named via a bottom legend (this app's own convention - see category-momentum-chart.tsx/
+// spending-by-category-chart.tsx) rather than docs/a's own end-of-line labels, which needed a
+// wide, mostly-empty right margin to avoid clipping category names + amounts.
 export function CategoryEvolutionChart({
   data,
   className,
@@ -49,9 +52,13 @@ export function CategoryEvolutionChart({
     );
 
     return {
-      grid: { left: 4, right: 16, top: 24, bottom: 28, containLabel: true },
+      animationDuration: 1000,
+      // bottom: 72 - clearance for a two-row legend (up to 7 categories) plus extra breathing
+      // room between the x-axis date labels and the legend below them.
+      grid: { left: 4, right: 16, top: 24, bottom: 72, containLabel: true },
       tooltip: {
         trigger: "axis" as const,
+        order: "valueDesc" as const,
         axisPointer: {
           type: "cross" as const,
           animation: false,
@@ -101,24 +108,11 @@ export function CategoryEvolutionChart({
       series: categoryNames.map((name, i) => ({
         name,
         type: "line" as const,
-        stack: "total",
         smooth: true,
-        symbol: "none" as const,
-        areaStyle: { opacity: 0.75 },
-        lineStyle: { width: 1, color: SERIES_COLORS[i % SERIES_COLORS.length] },
+        showSymbol: false,
+        lineStyle: { width: 2, color: SERIES_COLORS[i % SERIES_COLORS.length] },
         itemStyle: { color: SERIES_COLORS[i % SERIES_COLORS.length] },
         emphasis: { focus: "series" as const },
-        label: {
-          show: true,
-          position: "top" as const,
-          // Each series' own (non-cumulative) value, positioned at its stacked height -
-          // blank for a category/period combo with no spend so the stack isn't covered in
-          // "€0" labels for months a category had nothing billed.
-          formatter: (p: { value: number }) =>
-            p.value > 0 ? formatCurrency(p.value) : "",
-          fontSize: 9,
-          color: colors.mutedForeground,
-        },
         data: periods.map((p) => lookup.get(`${p}|${name}`) ?? 0),
       })),
     };
@@ -131,11 +125,11 @@ export function CategoryEvolutionChart({
       className={className}
     >
       {data.length === 0 ? (
-        <div className="flex h-[260px] items-center justify-center text-xs text-muted-foreground">
+        <div className="flex h-[280px] items-center justify-center text-xs text-muted-foreground">
           No spend history yet
         </div>
       ) : (
-        <ReactECharts option={option} style={{ height: 260 }} notMerge />
+        <ReactECharts option={option} style={{ height: 280 }} notMerge />
       )}
     </ChartCard>
   );

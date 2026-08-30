@@ -6,14 +6,16 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  Pencil,
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BillDeleteDialog } from "@/components/dashboard/bills/bill-delete-dialog";
+import { BillEditDialog } from "@/components/dashboard/bills/bill-edit-dialog";
 import { ConfidenceBadge } from "@/components/dashboard/confidence-badge";
 import { ChartCard } from "@/components/dashboard/overview/chart-card";
-import type { BillRead } from "@/lib/api";
+import type { BillRead, CategoryRead, VendorRead } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +67,8 @@ const COLUMNS: Column[] = [
 
 type BillsTableProps = {
   rows: BillRead[];
+  vendors: VendorRead[];
+  categories: CategoryRead[];
   vendorNames: Map<string, string>;
   categoryNames: Map<string, string>;
   onChanged: () => void;
@@ -107,9 +111,12 @@ function sortValue(
 // (+ currency), issue date, status, confidence, category. Sortable + paginated, both
 // client-side (see bill-filters.tsx's comment on why - GET /bills/ has no query params at
 // all). Name isn't a link yet - Bill Detail is a separate, not-yet-built page (same deferral
-// as RecentUploads/VendorBillsHistoryTable elsewhere in this app).
+// as RecentUploads/VendorBillsHistoryTable elsewhere in this app) - the row-level Edit action
+// (BillEditDialog) covers Bill Detail's "editable fields" list in the meantime.
 export function BillsTable({
   rows,
+  vendors,
+  categories,
   vendorNames,
   categoryNames,
   onChanged,
@@ -119,6 +126,7 @@ export function BillsTable({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [deletingBill, setDeletingBill] = useState<{
     id: string;
     name: string;
@@ -318,16 +326,26 @@ export function BillsTable({
                         "Uncategorized"}
                     </td>
                     <td className="py-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDeletingBill({ id: bill.id, name: bill.name })
-                        }
-                        className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        aria-label={`Delete ${bill.name}`}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingBillId(bill.id)}
+                          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          aria-label={`Edit ${bill.name}`}
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDeletingBill({ id: bill.id, name: bill.name })
+                          }
+                          className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={`Delete ${bill.name}`}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -376,6 +394,16 @@ export function BillsTable({
           )}
         </>
       )}
+      <BillEditDialog
+        billId={editingBillId ?? ""}
+        vendors={vendors}
+        categories={categories}
+        open={editingBillId !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingBillId(null);
+        }}
+        onSaved={onChanged}
+      />
       <BillDeleteDialog
         billId={deletingBill?.id ?? ""}
         billName={deletingBill?.name ?? ""}

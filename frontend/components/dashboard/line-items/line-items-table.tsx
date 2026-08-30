@@ -70,7 +70,7 @@ type LineItemsTableProps = {
 };
 
 const selectClass =
-  "h-7 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground";
+  "h-7 w-24 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground sm:w-auto";
 
 // frontend/CLAUDE.md's Line Items table: description, common_name, quantity, unit_price,
 // line_total, vendor, bill name - sortable, filterable by vendor/category. That filter lives
@@ -141,7 +141,10 @@ export function LineItemsTable({
       subtitle={`${sorted.length} item${sorted.length === 1 ? "" : "s"}`}
       className={className}
       actions={
-        <div className="flex items-center gap-1.5">
+        // flex-wrap - search input + 2 selects don't fit on one row on a phone-width card;
+        // without it they overflowed straight past the card's edge and off the viewport
+        // instead of wrapping onto a second line within it.
+        <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
           <div className="relative flex items-center">
             <Search className="pointer-events-none absolute left-2 size-3 text-muted-foreground" />
             <Input
@@ -150,7 +153,7 @@ export function LineItemsTable({
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search description or item"
               aria-label="Search line items"
-              className="h-7 w-40 pl-6 text-[11px]"
+              className="h-7 w-16 pl-6 text-[11px] sm:w-40"
             />
           </div>
           <select

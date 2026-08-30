@@ -1,0 +1,12 @@
+# .github/workflows/keep-alive.yml
+name: Keep Render alive
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Toutes les 10 minutes - marge contre le jitter de scheduling de GitHub Actions
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -s https://financeiq-api-zpba.onrender.com/health
+
+# i also use uptime robot to ping the render app every 5 minutes, but this is a backup in case uptime robot fails

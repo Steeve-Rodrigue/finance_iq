@@ -18,6 +18,7 @@ import {
   type VendorRead,
 } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { useUploadProgress } from "@/lib/upload-progress-context";
 
 // GET /bills/ has no query params at all (see bill-filters.tsx's comment) - this page fetches
 // the full bills/vendors/categories lists once (refetched via refreshKey after an
@@ -28,6 +29,9 @@ export default function BillsExplorerPage() {
   const [categories, setCategories] = useState<CategoryRead[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Also refetches when an upload finishes from the sidebar's global uploader, which has no
+  // direct reference to this page's own refreshKey (see upload-progress-context.tsx).
+  const { uploadVersion } = useUploadProgress();
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -74,7 +78,7 @@ export default function BillsExplorerPage() {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [refreshKey, uploadVersion]);
 
   const vendorNames = useMemo(
     () => new Map(vendors.map((v) => [v.id, v.name])),
@@ -154,6 +158,8 @@ export default function BillsExplorerPage() {
       />
       <BillsTable
         rows={filteredBills}
+        vendors={vendors}
+        categories={categories}
         vendorNames={vendorNames}
         categoryNames={categoryNames}
         onChanged={() => setRefreshKey((k) => k + 1)}

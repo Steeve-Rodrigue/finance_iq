@@ -107,6 +107,9 @@ export default function LandingPage() {
             </div>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 md:mt-10 xl:mt-12 xl:gap-4">
+              {/* One "Start" CTA instead of separate Sign in / Sign up buttons - both used to
+                  point at the same /login page anyway (its own form has both as tabs), so two
+                  buttons for the same destination was redundant. */}
               <Link
                 href="/login"
                 className={buttonVariants({
@@ -114,18 +117,8 @@ export default function LandingPage() {
                     "h-10 gap-1.5 px-4 text-sm md:h-12 md:gap-2 md:px-6 md:text-sm xl:h-14 xl:px-8 xl:text-base",
                 })}
               >
-                Sign in
+                Start
                 <ArrowRight className="size-4 xl:size-5" />
-              </Link>
-              <Link
-                href="/login"
-                className={buttonVariants({
-                  variant: "outline",
-                  className:
-                    "h-10 px-4 text-sm md:h-12 md:px-6 md:text-sm xl:h-14 xl:px-8 xl:text-base",
-                })}
-              >
-                Sign up
               </Link>
               <DemoButton />
             </div>

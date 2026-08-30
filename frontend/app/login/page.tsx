@@ -18,7 +18,9 @@ export default function LoginPage() {
       >
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="login">Sign in</TabsTrigger>
-          <TabsTrigger value="signup">Create account</TabsTrigger>
+          <TabsTrigger value="signup" disabled>
+            Create account
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="login" className="pt-4 sm:pt-6">
           <LoginForm />

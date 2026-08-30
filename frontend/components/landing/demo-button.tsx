@@ -1,22 +1,18 @@
 "use client";
 
 import { PlayCircle } from "lucide-react";
-import { toast } from "sonner";
+import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
 
-// Anticipates frontend/CLAUDE.md's Phase 5 "seeded demo account with deliberately ambiguous
-// bills" - not built yet, so this can't log anyone into a real demo account. The button is
-// real now (not a dead/fake link) so the landing page's shape is right ahead of that backend
-// work; clicking it is honest about not being ready yet instead of silently doing nothing or
-// routing somewhere misleading.
+// Sends the visitor to the bill-picker (app/demo/page.tsx) rather than straight into
+// /dashboard - that page is what actually seeds the demo store and sets the session token
+// (see its own header comment), once the visitor has chosen which of the mock dataset's bills
+// to load.
 export function DemoButton() {
   return (
-    <button
-      type="button"
-      onClick={() =>
-        toast.info("The live demo is coming soon - check back shortly.")
-      }
+    <Link
+      href="/demo"
       className={buttonVariants({
         variant: "outline",
         className:
@@ -25,6 +21,6 @@ export function DemoButton() {
     >
       <PlayCircle className="size-3.5 md:size-4" />
       Try the demo
-    </button>
+    </Link>
   );
 }

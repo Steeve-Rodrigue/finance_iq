@@ -35,6 +35,12 @@ type UploadProgressContextValue = {
   beginUpload: () => void;
   setProgress: (percent: number) => void;
   endUpload: () => void;
+  // Increments every time an upload finishes (from ANY trigger - the sidebar's global
+  // uploader has no direct reference to whatever page happens to be mounted, so it had no way
+  // to tell that page's list to refetch; a page can add this to a fetch effect's dependency
+  // array to pick up bills uploaded from the sidebar without the user having to navigate away
+  // and back to see them).
+  uploadVersion: number;
 };
 
 const UploadProgressContext = createContext<UploadProgressContextValue | null>(
@@ -49,6 +55,7 @@ export function UploadProgressProvider({
   const [uploading, setUploading] = useState(false);
   const [phase, setPhase] = useState<UploadPhase>("uploading");
   const [progress, setProgressState] = useState(0);
+  const [uploadVersion, setUploadVersion] = useState(0);
 
   const beginUpload = useCallback(() => {
     setUploading(true);
@@ -70,12 +77,29 @@ export function UploadProgressProvider({
     // vanishing out of the indeterminate spinner.
     setPhase("done");
     setProgressState(100);
+    setUploadVersion((v) => v + 1);
     setTimeout(() => setUploading(false), DONE_DISPLAY_MS);
   }, []);
 
   const value = useMemo(
-    () => ({ uploading, phase, progress, beginUpload, setProgress, endUpload }),
-    [uploading, phase, progress, beginUpload, setProgress, endUpload],
+    () => ({
+      uploading,
+      phase,
+      progress,
+      beginUpload,
+      setProgress,
+      endUpload,
+      uploadVersion,
+    }),
+    [
+      uploading,
+      phase,
+      progress,
+      beginUpload,
+      setProgress,
+      endUpload,
+      uploadVersion,
+    ],
   );
 
   return (

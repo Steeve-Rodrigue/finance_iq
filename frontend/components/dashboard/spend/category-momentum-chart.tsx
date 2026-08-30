@@ -126,7 +126,11 @@ export function CategoryMomentumChart({
     );
 
     return {
-      grid: { left: 4, right: 16, top: 8, bottom: 28, containLabel: true },
+      // bottom: 48 (not the usual 28 other spend charts use) - this chart's legend has one
+      // entry per distinct category, unbounded (unlike vendor-evolution-chart.tsx's top-5 cap),
+      // so once a user has all 6-7 categories in play the legend wraps to two rows and needs
+      // more clearance above the x-axis labels than a single-row legend does.
+      grid: { left: 4, right: 16, top: 8, bottom: 48, containLabel: true },
       tooltip: {
         trigger: "item" as const,
         formatter: (p: { seriesName: string; value: [number, number] }) =>

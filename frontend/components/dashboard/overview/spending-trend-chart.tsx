@@ -153,10 +153,26 @@ export function SpendingTrendChart({
           label: {
             show: true,
             position: "top" as const,
-            formatter: (p: { value: number }) => formatCurrency(p.value),
+            // A €0 point is "nothing happened that day" - labeling it adds no information and
+            // was most of the clutter on a dense/narrow chart, so it's skipped outright rather
+            // than left for hideOverlap to maybe thin out.
+            formatter: (p: { value: number }) =>
+              p.value > 0 ? formatCurrency(p.value) : "",
             fontSize: 9,
             color: colors.mutedForeground,
+            // Padding inflates the box hideOverlap (below) checks for collisions between the
+            // remaining non-zero labels on a dense/narrow chart.
+            padding: [3, 5],
           },
+          // With a dense point count (24 days/weeks) or a narrow container, always-on labels
+          // for every point collide into an unreadable smear. hideOverlap measures each
+          // label's actual rendered bounding box and hides whichever ones collide, so the set
+          // that stays visible adapts live to however much room the chart currently has
+          // (resizing the window - echarts-for-react already redraws on resize - or switching
+          // to a granularity/point count with fewer points reveals more of them automatically)
+          // instead of a fixed "every Nth point" rule that would either under- or over-thin
+          // depending on screen size.
+          labelLayout: { hideOverlap: true },
         },
       ],
     }),
