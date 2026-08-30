@@ -122,8 +122,8 @@ async def test_answering_an_elicitation_resumes_and_completes_the_bill(
     assert answered["answered_at"] is not None
 
     resumed_bill = (await client.get(f"/bills/{bill['id']}", headers=auth_header(token))).json()
-    assert resumed_bill["status"] == "pending"
-    assert resumed_bill["current_stage"] == "auditing"
+    assert resumed_bill["status"] == "resolved"
+    assert resumed_bill["current_stage"] == "complete"
     assert resumed_bill["vendor_name_raw"] == "Corner Mart"
     # merged: fields the parser did read correctly (total_amount) survive alongside the
     # human's correction (vendor_name_raw) - the answer doesn't wipe out everything else.

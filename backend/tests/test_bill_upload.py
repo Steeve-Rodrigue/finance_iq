@@ -107,8 +107,8 @@ async def test_upload_high_confidence_succeeds_on_first_attempt(
     bill = results[0]["bill"]
     assert bill["vendor_name_raw"] == "Corner Store"
     assert bill["total_amount"] == "10.50"
-    assert bill["current_stage"] == "auditing"
-    assert bill["status"] == "pending"
+    assert bill["current_stage"] == "complete"
+    assert bill["status"] == "resolved"
     # Regression: these two used to be silently dropped - never in _BILL_FIELDS at all.
     assert bill["payment_status"] == "paid"
     assert bill["extraction_strategy"] == "direct"
@@ -133,7 +133,7 @@ async def test_upload_retries_on_medium_confidence_then_succeeds(
     response = await _upload(client, token)
     assert response.status_code == 201
     bill = response.json()[0]["bill"]
-    assert bill["current_stage"] == "auditing"
+    assert bill["current_stage"] == "complete"
     assert calls == [bill_parser_service.PARSER_MODEL, bill_parser_service.RETRY_MODEL]
 
 
@@ -160,7 +160,7 @@ async def test_upload_recovers_from_malformed_json_on_first_attempt(
     assert response.status_code == 201
     result = response.json()[0]
     assert result["error"] is None
-    assert result["bill"]["current_stage"] == "auditing"
+    assert result["bill"]["current_stage"] == "complete"
     assert calls_made == [bill_parser_service.PARSER_MODEL, bill_parser_service.RETRY_MODEL]
 
 

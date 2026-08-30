@@ -87,7 +87,7 @@ async def test_resolved_parse_auto_categorizes_with_a_new_category(
     )
 
     bill = await _upload(client, token)
-    assert bill["current_stage"] == "auditing"
+    assert bill["current_stage"] == "complete"
     assert bill["category_id"] is not None
 
     categories = (await client.get("/categories/", headers=auth_header(token))).json()
@@ -141,7 +141,7 @@ async def test_categorizer_retries_with_vendor_history_then_succeeds(
     )
 
     bill = await _upload(client, token)
-    assert bill["current_stage"] == "auditing"
+    assert bill["current_stage"] == "complete"
     assert calls == [categorizer_service.CATEGORIZER_MODEL, categorizer_service.RETRY_MODEL]
 
 
@@ -205,6 +205,6 @@ async def test_answering_a_categorization_elicitation_resumes_it(
     assert answer_resp.json()["status"] == "answered"
 
     resumed_bill = (await client.get(f"/bills/{bill['id']}", headers=auth_header(token))).json()
-    assert resumed_bill["status"] == "pending"
-    assert resumed_bill["current_stage"] == "auditing"
+    assert resumed_bill["status"] == "resolved"
+    assert resumed_bill["current_stage"] == "complete"
     assert resumed_bill["category_id"] is not None

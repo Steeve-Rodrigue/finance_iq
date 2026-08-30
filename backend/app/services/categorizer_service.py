@@ -255,16 +255,21 @@ async def persist_categorization_result(
 ) -> None:
     """The one place a finalized categorization actually gets written - called both for a
     result resolved on the first pass/retry, and for one resumed after a categorization
-    elicitation is answered. Always clears status back to PENDING - a no-op if it was never
-    FLAGGED (the direct-resolve path), the actual un-flag if it was (the resume path)."""
+    elicitation is answered.
+
+    current_stage goes straight to COMPLETE, not AUDITING - there is no auditor stage and none
+    is planned (product decision), so categorizing is the pipeline's actual last step now.
+    status goes to RESOLVED for the same reason: un-flagging to PENDING (the resume path's old
+    behavior) used to leave a bill stuck there forever with nothing further to un-flag it,
+    since only the never-built auditor was ever going to move a bill to RESOLVED."""
     category_id = await _get_or_create_category_id(db, user_id, result)
     bill = await bills_repo.update(
         db,
         user_id,
         bill_id,
         category_id=category_id,
-        current_stage=BillStage.AUDITING,
-        status=BillStatus.PENDING,
+        current_stage=BillStage.COMPLETE,
+        status=BillStatus.RESOLVED,
     )
     if bill is None:
         raise NotFoundError(f"bill {bill_id} not found")
