@@ -37,12 +37,14 @@ export function KpiTiles({ kpis }: KpiTilesProps) {
         subtitle="Your overall expenses"
         icon={Wallet}
         tint={TINTS.amber}
-        value={formatCurrency(kpis.total_spent_current_month)}
+        value={formatCurrency(kpis.total_spent_current_month, {
+          precise: true,
+        })}
         className="motion-safe:delay-100"
       >
         <KpiChip icon={DeltaIcon} tint={TINTS.amber.chip}>
           {formatMonthLabel(-1)} —{" "}
-          {formatCurrency(kpis.total_spent_previous_month)}
+          {formatCurrency(kpis.total_spent_previous_month, { precise: true })}
           {deltaPct !== null &&
             ` · ${deltaPct >= 0 ? "↑" : "↓"}${Math.abs(deltaPct).toFixed(1)}%`}
         </KpiChip>

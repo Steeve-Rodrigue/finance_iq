@@ -18,7 +18,7 @@ export function SpendKpiTiles({ kpis }: SpendKpiTilesProps) {
         subtitle="Matching current filters"
         icon={Wallet}
         tint={TINTS.amber}
-        value={formatCurrency(kpis.total_spent)}
+        value={formatCurrency(kpis.total_spent, { precise: true })}
         className="col-span-2 motion-safe:delay-100 md:col-span-1"
       >
         <KpiChip icon={Wallet} tint={TINTS.amber.chip}>
