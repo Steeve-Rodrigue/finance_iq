@@ -2,7 +2,7 @@
 name: Keep Render alive
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Toutes les 10 minutes - marge contre le jitter de scheduling de GitHub Actions
+    - cron: "*/10 * * * *" # Toutes les 10 minutes - marge contre le jitter de scheduling de GitHub Actions
 jobs:
   ping:
     runs-on: ubuntu-latest
