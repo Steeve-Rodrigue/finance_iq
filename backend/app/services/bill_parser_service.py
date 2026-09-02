@@ -104,6 +104,10 @@ Field-by-field notes:
    - Is it a recognizable business name? (Intermarché, Lidl, EDF, Amazon, Carrefour, etc.)
    - Is the structure plausible and coherent?
    - Or does it read as garbled/misread (fragmented words, misaligned, incoherent)
+   - French franchise receipts routinely print a legal-entity disclaimer line directly under
+     the brand logo (e.g. "ENTREPRISE INDEPENDANTE", "SOCIETE INDEPENDANTE") - that disclaimer
+     is not the vendor name, even though it sits right next to it. The vendor is the brand name
+     in the logo/header itself.
 - vendor_key: the same name normalized (lowercase, no punctuation or legal-entity suffix) - used
   to look up or create the matching vendor, so it must stay stable even if vendor_name_raw varies
   slightly between documents for the same merchant.
@@ -119,9 +123,14 @@ Field-by-field notes:
 - issue_date / due_date: YYYY-MM-DD, or null if absent or not applicable.
 - service_period_start / service_period_end: the period the invoice covers (e.g. a subscription
   or utility bill), or null for a one-off receipt with no period.
-- subtotal: amount before tax.
+- subtotal: amount before tax. Many French receipts print a "RECAPITULATIF TVA" (or similar)
+  table with columns like "MT. HT" (subtotal before tax) and "MT. TVA" (tax amount) - when
+  that table is present, it's the authoritative source for subtotal/tax_amount, not a
+  cash-tendered ("ESPECES", amount handed over) or change-due ("A RENDRE") line elsewhere on
+  the receipt - those are payment-mechanics amounts, not the subtotal.
 - tax_amount: the sum of all applicable taxes (e.g. several VAT rates) as one single amount -
-  don't try to break out each rate separately.
+  don't try to break out each rate separately. See the subtotal note above for where to find it
+  on a receipt with a VAT recap table.
 - total_amount: total amount including tax.
 - amount_due: same as total_amount, unless the document explicitly shows a different remaining
   balance still owed (e.g. a partial payment already made) - in that case use that balance.
@@ -136,7 +145,10 @@ Field-by-field notes:
   default:
   - "receipt" documents are proof a transaction already completed - default "paid" unless the
     document explicitly shows a remaining balance still owed (then "partial") or explicitly
-    indicates nothing was paid (rare for a receipt, but possible - then "unpaid").
+    indicates nothing was paid (rare for a receipt, but possible - then "unpaid"). A
+    cash-tendered amount paired with a change-given amount (e.g. "ESPECES 2,50" tendered,
+    "A RENDRE 0,07" change) is itself direct, reconciled proof of a completed sale - "paid",
+    not "uncertain".
   - "invoice" documents are a request for future payment - default "unpaid" unless there's
     explicit evidence of payment (a "paid"/"réglé" stamp or watermark, amount_due = 0) - then
     "paid" - or a partial payment already recorded against a larger total - then "partial".
