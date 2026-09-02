@@ -50,7 +50,7 @@ export default function LandingPage() {
       <div className="relative z-10 flex flex-1 items-center md:items-stretch">
         <div className="grid w-full md:grid-cols-[4.5fr_3fr]">
           <div className="mx-auto flex w-full max-w-lg flex-col items-center px-14 py-16 text-center md:mx-auto md:max-w-2xl md:items-center md:py-1 md:px-8! md:pt-16! md:text-center xl:max-w-4xl xl:px-50! xl:pt-35!">
-            <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-6xl md:text-6xl xl:text-7xl">
+            <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-6xl md:text-6xl xl:text-7xl mt-13">
               Finance<span className="text-primary">IQ</span>
             </h1>
             <p className="mt-3 text-base text-primary/80 italic md:mt-4 md:text-lg xl:mt-5 xl:text-xl">
@@ -61,7 +61,7 @@ export default function LandingPage() {
               Every bill, finally understood.
             </h2>
 
-            <p className="mt-6 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-8 md:max-w-lg md:text-base xl:mt-10 xl:max-w-xl xl:text-lg">
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:mt-8 md:max-w-lg md:text-base xl:mt-10 xl:max-w-xl xl:text-lg">
               FinanceIQ&apos;s agents parse, categorize, and audit every bill.
               Asking you directly whenever they aren&apos;t confident, instead
               of guessing. Try the demo below to see how it works.
