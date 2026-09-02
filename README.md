@@ -40,7 +40,6 @@ No Claude Agent SDK, no MCP server — an earlier design iteration planned both,
 - **Parser** (`bill_parser_service.py`) — extracts vendor, dates, amounts, and line items directly from the bill's rendered page images (`pdf2image`), sent to a vision-capable model — no local text/OCR extraction step. Retries by escalating from a cheap model to a stronger one.
 - **Categorizer** (`categorizer_service.py`) — assigns the bill to one of the user's own categories (creating one if needed), seeded with a suggested taxonomy. Retries with the vendor's categorization history added as context.
 - **Sub-categorizer** (`subcategorizer_service.py`) — a batch job, not a per-bill pipeline stage: splits each category's line items into sub-categories (and, where warranted, a second level) purely from reading the items. It can't hang a question on one bill the way the other two agents do, since it works across many bills at once — an unresolved category routes its items to a catch-all "Autre" sub-category instead, honoring the spirit of "never guess silently" without a literal elicitation.
-- **Auditor** — cut. There's no third pipeline stage; a resolved categorization completes the bill directly (`current_stage=complete`, `status=resolved`).
 
 Every agent returns `confidence` and `reasoning` alongside its result (non-negotiable #2 below), and each sets its own high/low confidence thresholds tuned independently rather than sharing one global cutoff.
 
