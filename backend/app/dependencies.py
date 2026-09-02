@@ -1,3 +1,4 @@
+import uuid
 from contextvars import ContextVar
 
 import jwt
@@ -43,6 +44,35 @@ def _reapply_rls_user_on_new_transaction(
         )
 
 
+async def apply_rls_user(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Shared by every path that establishes "who this request is acting as" -
+    get_current_user's real-JWT path below, and app/routers/demo.py's no-auth demo path (the
+    public demo endpoint has no token to decode, but still needs every query it makes to be
+    RLS-scoped to the fixed demo account, exactly like a real authenticated request).
+
+    is_local=false (session-scoped), not true (transaction-scoped): several services in this
+    app call db.commit() mid-request (e.g. bills_service.create_bill, then
+    bill_parser_service.parse_and_persist_bill's own queries afterward). A COMMIT ends the
+    transaction that a `true`-scoped set_config lives in, silently reverting this to an empty
+    string for every query after the first commit in the same request - confirmed via a live
+    end-to-end test (Phase 2's upload endpoint), which failed with
+    `invalid input syntax for type uuid: ""` on its second query.
+
+    Session-scoped alone still isn't enough under connection pooling: a commit also releases
+    the physical connection back to the pool, so the *next* transaction can land on a
+    different connection that never had this GUC set - same empty-string failure, just on a
+    later query (reproduced live on the /bills upload endpoint). Setting the contextvar here
+    lets `_reapply_rls_user_on_new_transaction` above re-assert the value on every subsequent
+    transaction regardless of which physical connection it lands on; this explicit call only
+    has to cover the current transaction, which already began before the contextvar was set.
+    """
+    _current_rls_user_id.set(str(user_id))
+    await db.execute(
+        text("SELECT set_config('app.current_user_id', :user_id, false)"),
+        {"user_id": str(user_id)},
+    )
+
+
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
@@ -61,25 +91,6 @@ async def get_current_user(
     if user is None:
         raise credentials_error
 
-    # is_local=false (session-scoped), not true (transaction-scoped): several services in
-    # this app call db.commit() mid-request (e.g. bills_service.create_bill, then
-    # bill_parser_service.parse_and_persist_bill's own queries afterward). A COMMIT ends the
-    # transaction that a `true`-scoped set_config lives in, silently reverting this to an
-    # empty string for every query after the first commit in the same request - confirmed via
-    # a live end-to-end test (Phase 2's upload endpoint), which failed with
-    # `invalid input syntax for type uuid: ""` on its second query.
-    #
-    # Session-scoped alone still isn't enough under connection pooling: a commit also releases
-    # the physical connection back to the pool, so the *next* transaction can land on a
-    # different connection that never had this GUC set - same empty-string failure, just on a
-    # later query (reproduced live on the /bills upload endpoint). Setting the contextvar here
-    # lets `_reapply_rls_user_on_new_transaction` above re-assert the value on every subsequent
-    # transaction regardless of which physical connection it lands on; this explicit call only
-    # has to cover the current transaction, which already began before the contextvar was set.
-    _current_rls_user_id.set(str(user.id))
-    await db.execute(
-        text("SELECT set_config('app.current_user_id', :user_id, false)"),
-        {"user_id": str(user.id)},
-    )
+    await apply_rls_user(db, user.id)
 
     return user

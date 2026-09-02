@@ -13,6 +13,7 @@ from app.routers import (
     bill_line_items,
     bills,
     categories,
+    demo,
     elicitations,
     health,
     line_items,
@@ -49,3 +50,4 @@ app.include_router(bill_line_items.router)
 app.include_router(line_items.router)
 app.include_router(elicitations.router)
 app.include_router(analytics.router)
+app.include_router(demo.router)

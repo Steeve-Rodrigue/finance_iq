@@ -1,0 +1,10 @@
+# .github/workflows/demo_cleanup.yml
+name: Clean up stale demo bills
+on:
+  schedule:
+    - cron: "*/30 * * * *" # Toutes les 30 minutes - largement dans la fenêtre de 1h de demo_service.DEMO_BILL_MAX_AGE
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -s -X POST https://financeiq-api-zpba.onrender.com/demo/cleanup

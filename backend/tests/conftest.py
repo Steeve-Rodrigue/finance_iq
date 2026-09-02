@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import engine, get_db
 from app.main import app
-from app.services import categorizer_service
+from app.services import categorizer_service, rate_limiter
 
 
 @pytest.fixture
@@ -59,6 +59,15 @@ def _mock_categorizer_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
         }
 
     monkeypatch.setattr(categorizer_service, "call_categorizer", _fake_call_categorizer)
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter() -> None:
+    """app/services/rate_limiter.py's state is a process-global dict, not DB state - it
+    doesn't get the automatic per-test rollback db_session gives everything else. Every test
+    hitting the same rate-limited endpoint would otherwise share one rate-limit window (test
+    clients typically report no/the same client IP), making test order affect results."""
+    rate_limiter.reset()
 
 
 @pytest.fixture
