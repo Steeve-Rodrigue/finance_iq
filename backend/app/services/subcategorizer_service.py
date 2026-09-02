@@ -17,6 +17,7 @@ dropped) but not literally."""
 import uuid
 from typing import Any
 
+import openai
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -123,18 +124,26 @@ async def call_subcategorizer(
         temperature=0.15,
         extra_body={"reasoning": {"effort": "low"}},
     )
+    if not response.choices:
+        # Same gap as bill_parser_service.call_parser had - a free-tier model can return a
+        # 200-ish body with choices=None (an embedded provider error) instead of raising, and
+        # `response.choices[0]` on that would crash with a bare TypeError _call_subcategorizer_
+        # safe doesn't catch.
+        raise RuntimeError(f"subcategorizer returned no choices from {model!r}: {response!r}")
+
     raw = (response.choices[0].message.content or "").strip()
     logger.debug("subcategorizer.raw_response", raw=raw[:500])
     return llm_client.clamp_confidence(llm_client.extract_json(raw, source="subcategorizer"))
 
 
 async def _call_subcategorizer_safe(**kwargs: Any) -> dict[str, Any]:
-    """Same tolerance as categorizer_service._call_categorizer_safe - a malformed response
+    """Same tolerance as categorizer_service._call_categorizer_safe - a malformed response, or
+    the API call itself failing (rate limit, timeout, connection error - openai.APIError),
     degrades to confidence=0 (triggering retry, then the category-level "Autre" fallback if
     still unresolved) instead of crashing the batch run."""
     try:
         return await call_subcategorizer(**kwargs)
-    except RuntimeError as exc:
+    except (RuntimeError, openai.APIError) as exc:
         model = kwargs.get("model")
         logger.warning("subcategorizer.call_failed", model=model, error=str(exc))
         return {
