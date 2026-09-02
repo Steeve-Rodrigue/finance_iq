@@ -6,7 +6,7 @@ A multi-tenant web app where each user uploads their own bills, and a system of 
 
 **Live:** frontend on Vercel, backend on Render, Postgres on Neon (all free tier — see [Deployment](#deployment)). Render's free tier sleeps after 15 minutes idle, so the first request after a while can take ~30s to wake up.
 
-**Status:** auth, data model, upload, the parser and categorizer agents, elicitation (ask-the-user), a batch sub-categorizer, the full analytics dashboard, a client-side demo mode, and deployment are all built and live. The auditor — a planned third pipeline agent — is not built yet; bills currently stop at an `auditing` stage with no dedicated agent behind it.
+**Status:** auth, data model, upload, the parser and categorizer agents, elicitation (ask-the-user), a batch sub-categorizer, the full analytics dashboard, a client-side demo mode, and deployment are all built and live. A planned third pipeline agent — the auditor — was cut; categorizing is now the pipeline's last step, and a resolved bill goes straight to `complete`/`resolved` (the `auditing` stage name still exists in code but nothing sets it anymore).
 
 ---
 
@@ -40,7 +40,7 @@ No Claude Agent SDK, no MCP server — an earlier design iteration planned both,
 - **Parser** (`bill_parser_service.py`) — extracts vendor, dates, amounts, and line items directly from the bill's rendered page images (`pdf2image`), sent to a vision-capable model — no local text/OCR extraction step. Retries by escalating from a cheap model to a stronger one.
 - **Categorizer** (`categorizer_service.py`) — assigns the bill to one of the user's own categories (creating one if needed), seeded with a suggested taxonomy. Retries with the vendor's categorization history added as context.
 - **Sub-categorizer** (`subcategorizer_service.py`) — a batch job, not a per-bill pipeline stage: splits each category's line items into sub-categories (and, where warranted, a second level) purely from reading the items. It can't hang a question on one bill the way the other two agents do, since it works across many bills at once — an unresolved category routes its items to a catch-all "Autre" sub-category instead, honoring the spirit of "never guess silently" without a literal elicitation.
-- **Auditor** — not built. `auditing` exists as a bill stage name, reserved for it.
+- **Auditor** — cut. There's no third pipeline stage; a resolved categorization completes the bill directly (`current_stage=complete`, `status=resolved`).
 
 Every agent returns `confidence` and `reasoning` alongside its result (non-negotiable #2 below), and each sets its own high/low confidence thresholds tuned independently rather than sharing one global cutoff.
 
@@ -79,7 +79,7 @@ A **demo mode** (`/demo`) lets a visitor pick from a seeded mock dataset without
 
 **Frontend:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, ECharts (`echarts-for-react`) for all charts, `react-hook-form` + `zod`, shadcn-style components on `@base-ui/react`, `three`/`@react-three/fiber` for the landing page animation.
 
-**Infra:** Docker Compose (api + db + adminer) for local dev, GitHub Actions CI (ruff + pytest against a real Postgres instance), Vercel + Render + Neon for deployment.
+**Infra:** Docker Compose (api + web + db + adminer) for local dev, GitHub Actions CI (ruff + pytest against a real Postgres instance), Vercel + Render + Neon for deployment, plus a scheduled GitHub Actions cron pinging the backend to dodge Render's cold starts.
 
 ---
 
