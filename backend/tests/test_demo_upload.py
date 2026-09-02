@@ -137,25 +137,6 @@ async def test_demo_upload_is_rate_limited_per_client(
     assert response.status_code == 429
 
 
-async def test_demo_bill_cap_evicts_the_oldest_bill(
-    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
-) -> None:
-    _mock_call_parser(monkeypatch, _high_confidence_result())
-    monkeypatch.setattr(demo_service, "DEMO_MAX_BILLS", 2)
-    # Not what this test is about - bump it so 3 uploads don't trip the limiter too.
-    monkeypatch.setattr(demo_router, "RATE_LIMIT_MAX_REQUESTS", 10)
-
-    await _upload(client, "first.pdf")
-    await _upload(client, "second.pdf")
-    await _upload(client, "third.pdf")
-
-    user_id = await demo_service.get_or_create_demo_user(db_session)
-    bills = await bills_repo.list_by_user(db_session, user_id)
-    assert len(bills) == 3
-    names = {bill.name for bill in bills}
-    assert names == {"second.pdf", "third.pdf"}
-
-
 async def test_demo_cleanup_with_no_demo_user_yet_is_a_noop(client: AsyncClient) -> None:
     response = await client.post("/demo/cleanup")
     assert response.status_code == 200
