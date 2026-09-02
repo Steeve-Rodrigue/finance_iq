@@ -8,8 +8,8 @@ this module only owns the confidence thresholds and the accept/retry/give-up bra
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-HIGH_CONFIDENCE_THRESHOLD = 0.90
-LOW_CONFIDENCE_FLOOR = 0.86
+HIGH_CONFIDENCE_THRESHOLD = 0.87
+LOW_CONFIDENCE_FLOOR = 0.84
 
 
 async def run(
