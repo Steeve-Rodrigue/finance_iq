@@ -158,8 +158,8 @@ Field-by-field notes:
     never guess either of those.
 - line_items: one entry per line on the document.
   - description: the exact label as printed, in the document's own language - never translated.
-  - common_name: a short, common name in French for what this line item actually *is* make it
-    general  so that all items for the same product/service across different documents
+  - common_name: a short, common name (in one word) in French for what this line item actually
+  *is* make it general  so that all items for the same product/service across different documents
     will be matched to the same common_name.
 - quantity, unit_price, line_total: as printed, or inferred from context if only one of the
     three is missing (line_total = quantity * unit_price).
