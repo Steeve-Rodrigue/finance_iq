@@ -37,7 +37,7 @@ Example: an ambiguous charge doesn't get silently miscategorized — after a ret
 
 No Claude Agent SDK, no MCP server — an earlier design iteration planned both, but the app ended up simpler: every agent is a plain `app/services/` function that calls an LLM through [OpenRouter](https://openrouter.ai)'s OpenAI-compatible API via the standard `openai` Python client (`app/services/llm_client.py`), and asks for strict JSON back.
 
-- **Parser** (`bill_parser_service.py`) — extracts vendor, dates, amounts, and line items from the bill's PDF text (`pdfplumber`, falling back to Tesseract OCR via `pdf2image`/`pytesseract` for scanned documents). Retries by escalating from a cheap model to a stronger one.
+- **Parser** (`bill_parser_service.py`) — extracts vendor, dates, amounts, and line items directly from the bill's rendered page images (`pdf2image`), sent to a vision-capable model — no local text/OCR extraction step. Retries by escalating from a cheap model to a stronger one.
 - **Categorizer** (`categorizer_service.py`) — assigns the bill to one of the user's own categories (creating one if needed), seeded with a suggested taxonomy. Retries with the vendor's categorization history added as context.
 - **Sub-categorizer** (`subcategorizer_service.py`) — a batch job, not a per-bill pipeline stage: splits each category's line items into sub-categories (and, where warranted, a second level) purely from reading the items. It can't hang a question on one bill the way the other two agents do, since it works across many bills at once — an unresolved category routes its items to a catch-all "Autre" sub-category instead, honoring the spirit of "never guess silently" without a literal elicitation.
 - **Auditor** — not built. `auditing` exists as a bill stage name, reserved for it.
@@ -64,7 +64,7 @@ Every agent returns `confidence` and `reasoning` alongside its result (non-negot
 - **Spend Analytics** — filterable trends, category/vendor evolution, a calendar heatmap, bill-size distribution, recurring-bill and outlier detection, month-over-month comparisons
 - **Categories** — spend and bill count by category, category evolution, uncategorized/"Other" rate over time, full CRUD
 - **Vendors** — top vendors by spend and frequency, vendor concentration, per-vendor drill-down with its own spending trend and bill history
-- **Agent Insights** — confidence trend, confidence by category, extraction-strategy effectiveness (direct text vs. OCR)
+- **Agent Insights** — confidence trend, confidence by category, extraction-strategy effectiveness
 - **Elicitations** — pending/answered/expired questions, answer directly from the list
 - **Bills Explorer** — filterable, sortable table with inline editing and upload
 - **Line Items** — most-purchased items, spend by item, unit-price trends, sub-category drill-down
@@ -75,7 +75,7 @@ A **demo mode** (`/demo`) lets a visitor pick from a seeded mock dataset without
 
 ## Tech stack
 
-**Backend:** Python 3.11+, `uv`, FastAPI, SQLAlchemy 2.0 (async) + Alembic, Postgres with row-level security, OpenRouter via the `openai` client, `pdfplumber` + `pytesseract`/`pdf2image` for text extraction and OCR fallback, `pydantic-settings`, `structlog`, pytest, ruff.
+**Backend:** Python 3.11+, `uv`, FastAPI, SQLAlchemy 2.0 (async) + Alembic, Postgres with row-level security, OpenRouter via the `openai` client, `pdf2image` for page rasterization (bills are read directly as images by a vision-capable model), `pydantic-settings`, `structlog`, pytest, ruff.
 
 **Frontend:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, ECharts (`echarts-for-react`) for all charts, `react-hook-form` + `zod`, shadcn-style components on `@base-ui/react`, `three`/`@react-three/fiber` for the landing page animation.
 

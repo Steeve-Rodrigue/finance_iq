@@ -1,10 +1,11 @@
 """app/services/pdf_extraction.py isn't exercised by tests/test_bill_upload.py - that suite
 mocks bill_parser_service.call_parser entirely to avoid real API calls, so the local
-extraction step (direct-vs-OCR branching, error handling) needs its own coverage.
+rendering step (page rasterization, base64 encoding, page-count guard, error handling) needs
+its own coverage.
 
-data/Invoice2.pdf turned out to be a genuinely scanned/image-only PDF (0 chars via direct
-pdfplumber extraction) - confirmed by inspecting all four data/ samples directly, not assumed.
-It's used below as the real OCR-fallback fixture rather than a synthetic one.
+Every bill - text-layer or scanned - goes through the same render_pages path now (no more
+pdfplumber/pytesseract, no more direct-vs-OCR branching) - both real sample PDFs are exercised
+below to prove that's actually true, not just true for one of them.
 """
 
 from pathlib import Path
@@ -14,45 +15,42 @@ import pytest
 from app.services import pdf_extraction
 
 _DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-_TEXT_BASED_PDF = _DATA_DIR / "Invoice3.pdf"
+_TEXT_LAYER_PDF = _DATA_DIR / "Invoice3.pdf"
 _SCANNED_PDF = _DATA_DIR / "Invoice2.pdf"
 # data/ is gitignored (real sample bills aren't committed) - CI checkouts don't have these,
 # so these tests only run where they happen to be present locally.
 _skip_without_sample_pdfs = pytest.mark.skipif(
-    not (_TEXT_BASED_PDF.exists() and _SCANNED_PDF.exists()),
+    not (_TEXT_LAYER_PDF.exists() and _SCANNED_PDF.exists()),
     reason="Invoice2.pdf and Invoice3.pdf are gitignored, not present in this checkout",
 )
 
 
 @_skip_without_sample_pdfs
-async def test_extract_text_direct_on_real_text_based_pdf() -> None:
-    text = await pdf_extraction.extract_text_direct(_TEXT_BASED_PDF)
-    assert len(text) >= pdf_extraction.MIN_DIRECT_TEXT_CHARS
+async def test_render_pages_returns_one_data_url_per_page_for_text_layer_pdf() -> None:
+    urls = await pdf_extraction.render_pages(_TEXT_LAYER_PDF)
+    assert len(urls) >= 1
+    assert all(url.startswith("data:image/png;base64,") for url in urls)
 
 
 @_skip_without_sample_pdfs
-async def test_extract_text_picks_direct_method_for_text_based_pdf() -> None:
-    text, method = await pdf_extraction.extract_text(_TEXT_BASED_PDF)
-    assert method == "direct"
-    assert len(text) > 0
+async def test_render_pages_returns_one_data_url_per_page_for_scanned_pdf() -> None:
+    # Same code path regardless of whether the PDF has a text layer - no branching left to
+    # exercise differently here, this just proves it works on a genuinely scanned file too.
+    urls = await pdf_extraction.render_pages(_SCANNED_PDF)
+    assert len(urls) >= 1
+    assert all(url.startswith("data:image/png;base64,") for url in urls)
 
 
-@_skip_without_sample_pdfs
-async def test_extract_text_direct_returns_empty_on_scanned_pdf() -> None:
-    text = await pdf_extraction.extract_text_direct(_SCANNED_PDF)
-    assert len(text) < pdf_extraction.MIN_DIRECT_TEXT_CHARS
-
-
-@_skip_without_sample_pdfs
-async def test_extract_text_falls_back_to_ocr_on_scanned_pdf() -> None:
-    text, method = await pdf_extraction.extract_text(_SCANNED_PDF)
-    assert method == "ocr"
-    assert len(text) > 0
-
-
-async def test_extract_text_direct_raises_clear_error_on_corrupt_file(tmp_path: Path) -> None:
+async def test_render_pages_raises_clear_error_on_corrupt_file(tmp_path: Path) -> None:
     corrupt = tmp_path / "not-a-real.pdf"
     corrupt.write_bytes(b"this is not a pdf, just garbage bytes")
 
-    with pytest.raises(Exception):  # noqa: B017 - pdfplumber's own exception type isn't public API
-        await pdf_extraction.extract_text_direct(corrupt)
+    with pytest.raises(Exception):  # noqa: B017 - pdf2image's exception type isn't public API
+        await pdf_extraction.render_pages(corrupt)
+
+
+async def test_render_pages_rejects_too_many_pages(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pdf_extraction, "pdfinfo_from_path", lambda _: {"Pages": 999})
+
+    with pytest.raises(RuntimeError, match="exceeding"):
+        await pdf_extraction.render_pages(Path("irrelevant.pdf"))

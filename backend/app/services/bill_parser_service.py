@@ -27,10 +27,10 @@ RETRY_MODEL = settings.parser_retry_model
 HIGH_CONFIDENCE_THRESHOLD = 0.85
 LOW_CONFIDENCE_FLOOR = 0.70
 
-PARSER_PROMPT = """You extract information from an invoice or receipt, given the text \
-extracted from the original PDF below - usually clean, but it may contain OCR recognition \
-errors (misread characters, garbled words) if the source was a scanned document. Account for \
-that possibility when judging your confidence.
+PARSER_PROMPT = """You extract information from an invoice or receipt, given the page image(s) \
+of the original document below. The scan itself may be low quality (skewed, blurry, faint \
+print, low resolution) - account for that possibility when judging your confidence, the same \
+way you would reading a physical document handed to you in poor lighting.
 
 The document can be in any language. Write your own generated/interpretive text - \
 "common_name" and "reasoning" - in French, regardless of what language the document itself \
@@ -42,10 +42,11 @@ localized.
 Sanity-check every field, not just whether something was technically extracted. This is the \
 single most common way this extraction goes subtly wrong, so take it seriously: characters can \
 be perfectly legible - every letter clearly there, nothing you'd call "illegible" - while the \
-words they spell still don't mean anything real. An address is the classic case: OCR can \
-produce a crisp, readable string that is nonetheless not a real street address (wrong word \
-order, a "street name" that isn't a real word, a postal code that doesn't match the town, \
-fragments stitched from two different lines of the source). A product name has the same trap: \
+words they spell still don't mean anything real. An address is the classic case: a low-quality \
+scan can read as a crisp, readable string that is nonetheless not a real street address \
+(wrong word order, a "street name" that isn't a real word, a postal code that doesn't match \
+the town, fragments stitched from two different lines of the source). A product name has the \
+same trap: \
 the raw description can be an abbreviated or truncated label that reads fine as text but \
 doesn't actually identify what was bought. Don't accept a field just because it's legible - \
 actively ask yourself "does this, as a whole, correspond to a real address / a real product / \
@@ -54,9 +55,9 @@ legible or not - don't silently keep it or silently drop it - lower your confide
 and say exactly which field and why in "reasoning", so the user can be asked to confirm it \
 rather than the bad value being trusted automatically.
 
-Your output must be syntactically valid JSON above everything else. If the source text \
+Your output must be syntactically valid JSON above everything else. If a value you transcribe \
 contains quotation marks, curly/smart quotes ("like this", 'like this'), or other unusual \
-punctuation inside a value (common in garbled OCR text), either escape them properly \
+punctuation, either escape them properly \
 (\\" for a literal double quote) or paraphrase around them - never place a raw, unescaped \
 quote character inside a JSON string value, since that alone breaks parsing.
 
@@ -102,7 +103,7 @@ Field-by-field notes:
   evaluate it as an enterprise: does it have a plausible structure (a real company name)?
    - Is it a recognizable business name? (Intermarché, Lidl, EDF, Amazon, Carrefour, etc.)
    - Is the structure plausible and coherent?
-   - Or is it OCR garbled (fragmented words, misaligned, incoherent)
+   - Or does it read as garbled/misread (fragmented words, misaligned, incoherent)
 - vendor_key: the same name normalized (lowercase, no punctuation or legal-entity suffix) - used
   to look up or create the matching vendor, so it must stay stable even if vendor_name_raw varies
   slightly between documents for the same merchant.
@@ -110,7 +111,7 @@ Field-by-field notes:
   Don't just copy whatever text sits near the vendor name - actually evaluate it as an address:
   does it have a plausible structure (a real street name, a number, a postal code that's the
   right shape for the country, a real town)? A string that's legible but doesn't hang together
-  as a real address (garbled OCR word order, a postal code that doesn't belong to the named
+  as a real address (garbled word order, a postal code that doesn't belong to the named
   town, fragments from unrelated lines run together) is not a good extraction even though every
   character in it is readable - treat it the same as an illegible field for confidence purposes,
   don't silently pass it through.
@@ -146,9 +147,10 @@ Field-by-field notes:
   - description: the exact label as printed, in the document's own language - never translated.
   - common_name: a short, normalized name in French for what this line item actually *is* -
     think about it, don't just mechanically shorten or translate the raw description. Receipt
-    line labels are routinely abbreviated, truncated, or garbled by OCR (e.g. "ST ELOI BIO RIZ
-    BASM" is a real product, not gibberish: infer "riz basmati" - a rice brand/variety label
-    compressed onto a receipt line, not literal nonsense to copy as-is). Use the vendor, the
+    line labels are routinely abbreviated, truncated, or hard to make out on a receipt (e.g.
+    "ST ELOI BIO RIZ BASM" is a real product, not gibberish: infer "riz basmati" - a rice
+    brand/variety label compressed onto a receipt line, not literal nonsense to copy as-is).
+    Use the vendor, the
     price, and ordinary product knowledge to figure out what was actually purchased, the same
     way a person glancing at the receipt would, rather than pattern-matching only the visible
     characters. If you genuinely can't tell what a line item is even after that reasoning, say
@@ -173,7 +175,7 @@ Field-by-field notes:
   vague "something's uncertain".
 - uncertain_fields: the itemized version of "reasoning" - one {"field", "reason"} entry per
   specific field you're not fully confident about, "reason" a short sentence in French (e.g.
-  {"field": "vendor_name_raw", "reason": "semble corrompu par l'OCR, plusieurs lettres
+  {"field": "vendor_name_raw", "reason": "semble illisible sur le scan, plusieurs lettres
   incohérentes"}). "field" must be the exact JSON key from this schema (for a line item,
   "line_items[N].description" where N is its 0-based index) - the user's own current
   (possibly-wrong) value for that exact field gets shown alongside your reason when this is
@@ -186,27 +188,41 @@ Field-by-field notes:
 
 
 async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
-    """Extract text from the PDF locally (direct extraction, OCR fallback for scans), then
-    send it to `model` via OpenRouter. Raises RuntimeError if the response can't be parsed as
-    the expected JSON object."""
-    text, extraction_method = await pdf_extraction.extract_text(pdf_path)
-    logger.debug("bill_parser.extracted_text", method=extraction_method, chars=len(text))
+    """Rasterize the PDF's pages locally (app/services/pdf_extraction.py::render_pages), then
+    send them as images to `model` (a vision-capable model) via OpenRouter. Raises RuntimeError
+    if the response can't be parsed as the expected JSON object."""
+    image_data_urls = await pdf_extraction.render_pages(pdf_path)
+    logger.debug("bill_parser.rendered_pages", pages=len(image_data_urls))
 
     response = await llm_client.client.chat.completions.create(
         model=model,
         max_tokens=4096,
         messages=[
             {"role": "system", "content": PARSER_PROMPT},
-            {"role": "user", "content": f"Extracted text:\n\n{text}"},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Bill page image(s) below:"},
+                    *[{"type": "image_url", "image_url": {"url": url}} for url in image_data_urls],
+                ],
+            },
         ],
         temperature=0.3,
         # "medium", not "low" - the address/common_name sanity-checking above genuinely needs
-        # the model to reason, not just pattern-match visible characters. Was "low" earlier
-        # this session specifically because gpt-oss-120b can spend its whole token budget on
-        # hidden reasoning and return empty content if that budget runs out first - live-tested
-        # after this change with the current max_tokens=4096 to confirm it doesn't regress that.
+        # the model to reason, not just pattern-match visible characters. Validated against a
+        # real scanned bill in notebooks/vision_model.ipynb with this exact model/effort/
+        # max_tokens combination: returns a complete, well-formed response, doesn't truncate
+        # into empty content from spending its whole budget on hidden reasoning.
         extra_body={"reasoning": {"effort": "medium"}},
     )
+
+    if not response.choices:
+        # A free-tier model can come back with an error/rate-limit body that has no `choices`
+        # at all (observed live against nvidia's free reasoning model) - `response.choices[0]`
+        # would raise a bare TypeError that _call_parser_safe's `except RuntimeError` doesn't
+        # catch, crashing run_decision_loop before the retry model ever gets a chance. Treat it
+        # the same as any other unusable response instead.
+        raise RuntimeError(f"parser returned no choices from {model!r}: {response!r}")
 
     choice = response.choices[0]
     raw = (choice.message.content or "").strip()
@@ -219,17 +235,17 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
         )
 
     result = llm_client.clamp_confidence(llm_client.extract_json(raw, source="parser"))
-    # Not something the model reports about itself - it's which local extraction path actually
-    # produced the text it was given (see pdf_extraction.extract_text), so it's set here
-    # rather than asked for in the JSON schema.
-    result["extraction_strategy"] = extraction_method
+    # Every bill goes through the same vision path now - no more direct-text-layer-vs-OCR
+    # branching to record. Kept as a field rather than removed: `bills.extraction_strategy` is
+    # a real DB column other code reads (see _BILL_FIELDS below), not worth a migration to drop.
+    result["extraction_strategy"] = "vision"
     return result
 
 
 async def _call_parser_safe(pdf_path: Path, model: str) -> dict[str, Any]:
     """call_parser, but a malformed/unparseable response degrades to a confidence-0 result
     instead of raising. A parse failure (e.g. the model echoing an unescaped smart-quote from
-    garbled OCR text straight into a JSON string) is just an extreme case of "not confident" -
+    a hard-to-read scan straight into a JSON string) is just an extreme case of "not confident" -
     it should go through the same retry-then-elicit path as any other bad result, not bypass
     it by crashing run_decision_loop on the first attempt before the retry model ever runs."""
     try:

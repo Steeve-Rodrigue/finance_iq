@@ -12,12 +12,12 @@ from httpx import AsyncClient
 from app.services import bill_parser_service, llm_client
 from tests.helpers import auth_header, signup_and_login
 
-_DIRECT_PDF = Path("data/Invoice3.pdf")
-_OCR_PDF = Path("data/Invoice2.pdf")
+_TEXT_LAYER_PDF = Path("data/Invoice3.pdf")
+_SCANNED_PDF = Path("data/Invoice2.pdf")
 # data/ is gitignored (real sample bills aren't committed) - CI checkouts don't have these,
 # so this test only runs where they happen to be present locally.
 _skip_without_sample_pdfs = pytest.mark.skipif(
-    not (_DIRECT_PDF.exists() and _OCR_PDF.exists()),
+    not (_TEXT_LAYER_PDF.exists() and _SCANNED_PDF.exists()),
     reason="Invoice2.pdf and Invoice3.pdf are gitignored, not present in this checkout",
 )
 
@@ -56,7 +56,7 @@ def _high_confidence_result(**overrides: Any) -> dict[str, Any]:
         "amount_due": 10.50,
         "payment_method": "card",
         "payment_status": "paid",
-        "extraction_strategy": "direct",
+        "extraction_strategy": "vision",
         "line_items": [
             {
                 "description": "Bread",
@@ -111,7 +111,7 @@ async def test_upload_high_confidence_succeeds_on_first_attempt(
     assert bill["status"] == "resolved"
     # Regression: these two used to be silently dropped - never in _BILL_FIELDS at all.
     assert bill["payment_status"] == "paid"
-    assert bill["extraction_strategy"] == "direct"
+    assert bill["extraction_strategy"] == "vision"
     assert calls == [bill_parser_service.PARSER_MODEL]
 
     line_items = await client.get(f"/bills/{bill['id']}/line-items/", headers=auth_header(token))
@@ -284,14 +284,14 @@ async def test_uploaded_bill_is_cross_user_isolated(
 
 
 @_skip_without_sample_pdfs
-async def test_call_parser_sets_extraction_strategy_from_the_real_extraction_path(
+async def test_call_parser_sets_extraction_strategy_to_vision_regardless_of_text_layer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Regression: extraction_strategy used to be computed by pdf_extraction.extract_text and
-    then discarded (only used for a debug log line) - call_parser must actually attach it to
-    the result. Only the model call is mocked here; pdf_extraction.extract_text runs for real
-    against real sample PDFs, so this proves the detection+propagation logic itself, not just
-    that persistence maps a pre-supplied value."""
+    """Every bill goes through the same render-pages-to-images path now, whether or not it has
+    a real text layer - no more direct-vs-OCR branching. Only the model call is mocked here;
+    pdf_extraction.render_pages runs for real against both real sample PDFs, so this proves
+    call_parser actually renders and sends images for both, not just that persistence maps a
+    pre-supplied value."""
 
     async def _fake_create(**kwargs: Any) -> SimpleNamespace:
         content = json.dumps({"confidence": 0.9, "reasoning": "test"})
@@ -301,8 +301,8 @@ async def test_call_parser_sets_extraction_strategy_from_the_real_extraction_pat
 
     monkeypatch.setattr(llm_client.client.chat.completions, "create", _fake_create)
 
-    direct_result = await bill_parser_service.call_parser(_DIRECT_PDF, "any-model")
-    assert direct_result["extraction_strategy"] == "direct"
+    text_layer_result = await bill_parser_service.call_parser(_TEXT_LAYER_PDF, "any-model")
+    assert text_layer_result["extraction_strategy"] == "vision"
 
-    ocr_result = await bill_parser_service.call_parser(_OCR_PDF, "any-model")
-    assert ocr_result["extraction_strategy"] == "ocr"
+    scanned_result = await bill_parser_service.call_parser(_SCANNED_PDF, "any-model")
+    assert scanned_result["extraction_strategy"] == "vision"

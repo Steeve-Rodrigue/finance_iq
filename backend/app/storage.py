@@ -19,7 +19,7 @@ def compute_storage_key(user_id: uuid.UUID, content: bytes) -> tuple[str, str]:
 @contextmanager
 def temp_pdf(content: bytes) -> Iterator[Path]:
     """Writes the uploaded bytes to a temp file for the duration of parsing. The parser needs a
-    real filesystem path (pdf_extraction.extract_text reads from one), but nothing in this app
+    real filesystem path (pdf_extraction.render_pages reads from one), but nothing in this app
     reads an uploaded bill's original PDF again after that one parse call - there's no
     "view/download original" feature and no re-parse-later flow - so there's no reason to
     persist it beyond the request. /tmp is writable on effectively every container platform
