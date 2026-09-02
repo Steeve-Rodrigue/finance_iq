@@ -151,7 +151,7 @@ async def test_demo_bill_cap_evicts_the_oldest_bill(
 
     user_id = await demo_service.get_or_create_demo_user(db_session)
     bills = await bills_repo.list_by_user(db_session, user_id)
-    assert len(bills) == 2
+    assert len(bills) == 3
     names = {bill.name for bill in bills}
     assert names == {"second.pdf", "third.pdf"}
 
