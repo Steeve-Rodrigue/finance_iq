@@ -2,7 +2,7 @@
 name: Clean up stale demo bills
 on:
   schedule:
-    - cron: "*/30 * * * *" # Toutes les 30 minutes - largement dans la fenêtre de 1h de demo_service.DEMO_BILL_MAX_AGE
+    - cron: "*/10 * * * *" # Toutes les 10 minutes - largement dans la fenêtre de 1h de demo_service.DEMO_BILL_MAX_AGE
 jobs:
   cleanup:
     runs-on: ubuntu-latest
