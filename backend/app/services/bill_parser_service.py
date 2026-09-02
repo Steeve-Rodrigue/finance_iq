@@ -66,7 +66,8 @@ Respond ONLY in JSON, no markdown, no preamble, with exactly this shape:
 {
   "document_type": "invoice or receipt",
   "vendor_name_raw": "name exactly as printed",
-  "vendor_key": "vendor name normalized to lowercase",
+  "vendor_key": "vendor name normalized to lowercase without punctuation or accents, used to \
+    look up or create the matching vendor",
   "address": "vendor's full address, or null",
   "invoice_number": "invoice or receipt reference number, or null",
   "issue_date": "YYYY-MM-DD or null",
@@ -157,18 +158,10 @@ Field-by-field notes:
     never guess either of those.
 - line_items: one entry per line on the document.
   - description: the exact label as printed, in the document's own language - never translated.
-  - common_name: a short, normalized name in French for what this line item actually *is* -
-    think about it, don't just mechanically shorten or translate the raw description. Receipt
-    line labels are routinely abbreviated, truncated, or hard to make out on a receipt (e.g.
-    "ST ELOI BIO RIZ BASM" is a real product, not gibberish: infer "riz basmati" - a rice
-    brand/variety label compressed onto a receipt line, not literal nonsense to copy as-is).
-    Use the vendor, the
-    price, and ordinary product knowledge to figure out what was actually purchased, the same
-    way a person glancing at the receipt would, rather than pattern-matching only the visible
-    characters. If you genuinely can't tell what a line item is even after that reasoning, say
-    so honestly (a generic term, or note the uncertainty) rather than inventing a specific
-    product with false confidence.
-  - quantity, unit_price, line_total: as printed, or inferred from context if only one of the
+  - common_name: a short, common name in French for what this line item actually *is* make it
+    general  so that all items for the same product/service across different documents
+    will be matched to the same common_name.
+- quantity, unit_price, line_total: as printed, or inferred from context if only one of the
     three is missing (line_total = quantity * unit_price).
 - confidence: your overall confidence in this extraction, between 0 and 1. Being present isn't
   enough - a field that's legible but doesn't make sense (see the sanity-check note above)
