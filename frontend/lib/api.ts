@@ -1,6 +1,7 @@
 import { isDemoToken } from "@/lib/demo/demo-mode";
 import { demoRequest } from "@/lib/demo/demo-router";
 import { demoUploadBills } from "@/lib/demo/demo-upload";
+import { startProgressSimulation } from "@/lib/progress-simulation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -386,6 +387,16 @@ export type BillUploadResult = {
 // total), which fetch has no API for on the request body side - only XHR's xhr.upload
 // exposes that. Mirrors request()'s error-parsing shape (FastAPI's `detail` field) so callers
 // get the same ApiError either way.
+//
+// Byte-upload progress only covers the request body actually being sent - for a bill-sized
+// PDF that's usually near-instant, but the real vision-model parsing that follows
+// (backend/app/services/bill_parser_service.py) can take 60-180s+, and XHR has no progress
+// signal for that server-side work at all. Without accounting for that, the reported percent
+// would sit frozen at 100% (or whatever the last upload.onprogress tick was) for the entire
+// wait, looking hung. `upload.onprogress` is scaled to 90% and `upload.onloadend` (fires once
+// the request body has finished sending, success or fail) hands off to
+// lib/progress-simulation.ts's shared creep from 90 to 99 for the remaining wait, same
+// approach lib/demo/demo-upload.ts uses for the live demo upload.
 export function uploadBills(
   token: string,
   files: File[],
@@ -401,16 +412,26 @@ export function uploadBills(
     xhr.open("POST", `${API_BASE_URL}/bills/upload`);
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
+    let stopSimulation: (() => void) | null = null;
+
     if (onProgress) {
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
-          onProgress(Math.round((event.loaded / event.total) * 100));
+          onProgress(Math.round((event.loaded / event.total) * 90));
         }
+      };
+      xhr.upload.onloadend = () => {
+        stopSimulation = startProgressSimulation(onProgress, {
+          from: 90,
+          cap: 99,
+        });
       };
     }
 
     xhr.onload = () => {
+      stopSimulation?.();
       if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
         try {
           resolve(JSON.parse(xhr.responseText) as BillUploadResult[]);
         } catch {
@@ -443,6 +464,7 @@ export function uploadBills(
     };
 
     xhr.onerror = () => {
+      stopSimulation?.();
       reject(new ApiError("Network error - please check your connection.", 0));
     };
 

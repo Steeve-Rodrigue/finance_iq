@@ -5,6 +5,7 @@ import type {
   DemoLineItem,
 } from "@/lib/demo/demo-data";
 import { getStore } from "@/lib/demo/demo-store";
+import { startProgressSimulation } from "@/lib/progress-simulation";
 
 // Same env var lib/api.ts's real request()/uploadBills use - the /demo endpoints live on the
 // same FastAPI backend, just at a different (unauthenticated) path.
@@ -140,25 +141,6 @@ function insertRealResult(result: DemoUploadApiResult): BillUploadResult {
   return { filename: result.filename, bill: { id: bill.id }, error: null };
 }
 
-// Fake but honest-feeling progress while waiting on the real backend: a plain fetch() gives no
-// mid-request signal at all (unlike lib/api.ts's real uploadBills, which uses XHR specifically
-// for upload.onprogress - but that only covers the upload itself, not the 60-180s+ of real
-// vision-model parsing that follows it, which has no progress signal either way). Creeps
-// towards 90% over roughly the real observed wait time so the button doesn't look frozen,
-// jumps to 100% the moment the actual response arrives.
-function startProgressSimulation(
-  onProgress?: (percent: number) => void,
-): () => void {
-  if (!onProgress) return () => {};
-  let percent = 0;
-  onProgress(percent);
-  const interval = setInterval(() => {
-    percent = Math.min(percent + 3, 90);
-    onProgress(percent);
-  }, 3000);
-  return () => clearInterval(interval);
-}
-
 // Real counterpart to the old client-side fabrication: POSTs to the public, unauthenticated
 // backend/app/routers/demo.py::demo_upload_bills - the actual vision parser
 // (bill_parser_service.py) runs on the real file, through the real confidence/retry/
@@ -179,7 +161,9 @@ export async function demoUploadBills(
   const results: BillUploadResult[] = [];
 
   if (first) {
-    const stopProgress = startProgressSimulation(onProgress);
+    const stopProgress = onProgress
+      ? startProgressSimulation(onProgress)
+      : () => {};
     try {
       const formData = new FormData();
       formData.append("files", first);
