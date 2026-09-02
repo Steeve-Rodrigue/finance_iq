@@ -3,6 +3,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import openai
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -248,14 +249,25 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
 
 
 async def _call_parser_safe(pdf_path: Path, model: str) -> dict[str, Any]:
-    """call_parser, but a malformed/unparseable response degrades to a confidence-0 result
-    instead of raising. A parse failure (e.g. the model echoing an unescaped smart-quote from
-    a hard-to-read scan straight into a JSON string) is just an extreme case of "not confident" -
-    it should go through the same retry-then-elicit path as any other bad result, not bypass
-    it by crashing run_decision_loop on the first attempt before the retry model ever runs."""
+    """call_parser, but a malformed/unparseable response - or the API call itself failing -
+    degrades to a confidence-0 result instead of raising. A parse failure (e.g. the model
+    echoing an unescaped smart-quote from a hard-to-read scan straight into a JSON string) is
+    just an extreme case of "not confident" - it should go through the same retry-then-elicit
+    path as any other bad result, not bypass it by crashing run_decision_loop on the first
+    attempt before the retry model ever runs.
+
+    openai.APIError (base class for RateLimitError, APIStatusError/non-2xx responses,
+    APIConnectionError, APITimeoutError) is caught alongside RuntimeError for the same reason -
+    hit live against a real free-tier daily quota ("Rate limit exceeded: free-models-per-day"):
+    the openai client raises its own exception type for a non-2xx HTTP response, which a bare
+    `except RuntimeError` doesn't catch, so it was propagating all the way out to the router's
+    per-file handler as a raw API error string instead of trying RETRY_MODEL first. A model
+    being rate-limited or briefly unreachable is exactly the kind of transient failure retrying
+    with a different model is for - PARSER_MODEL and RETRY_MODEL are different OpenRouter
+    accounts/models, so a quota hit on one doesn't necessarily block the other."""
     try:
         return await call_parser(pdf_path, model)
-    except RuntimeError as exc:
+    except (RuntimeError, openai.APIError) as exc:
         logger.warning("bill_parser.call_failed", model=model, error=str(exc))
         return {
             "confidence": 0.0,

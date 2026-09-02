@@ -80,6 +80,15 @@ async def parse_elicitation_answer(
         temperature=0.1,
         extra_body={"reasoning": {"effort": "low"}},
     )
+    if not response.choices:
+        # Same gap as bill_parser_service.call_parser had - a free-tier model can return a
+        # 200-ish body with choices=None (an embedded provider error) instead of raising, and
+        # `response.choices[0]` on that would crash with a bare TypeError instead of a message
+        # a caller can actually do something with.
+        raise RuntimeError(
+            f"answer extraction returned no choices from {settings.parser_model!r}: {response!r}"
+        )
+
     raw = (response.choices[0].message.content or "").strip()
     logger.debug("elicitation_answers.raw_response", raw=raw[:500])
     return llm_client.extract_json(raw, source="answer extraction")
