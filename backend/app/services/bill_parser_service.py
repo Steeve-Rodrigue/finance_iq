@@ -180,7 +180,7 @@ Field-by-field notes:
   vague "something's uncertain".
 - uncertain_fields: the itemized version of "reasoning" - one {"field", "reason"} entry per
   specific field you're not fully confident about, "reason" a short sentence in French (e.g.
-  {"field": "vendor_name_raw", "reason": "semble illisible sur le scan, plusieurs lettres
+  {"field": "vendor_name_raw", "reason": "semble corrompu par l'OCR, plusieurs lettres
   incohérentes"}). "field" must be the exact JSON key from this schema (for a line item,
   "line_items[N].description" where N is its 0-based index) - the user's own current
   (possibly-wrong) value for that exact field gets shown alongside your reason when this is
@@ -201,7 +201,7 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
 
     response = await llm_client.client.chat.completions.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=2000,
         messages=[
             {"role": "system", "content": PARSER_PROMPT},
             {
@@ -212,7 +212,7 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
                 ],
             },
         ],
-        temperature=0.3,
+        temperature=0.2,
         # "medium", not "low" - the address/common_name sanity-checking above genuinely needs
         # the model to reason, not just pattern-match visible characters. Validated against a
         # real scanned bill in notebooks/vision_model.ipynb with this exact model/effort/
