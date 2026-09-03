@@ -67,7 +67,7 @@ Respond ONLY in JSON, no markdown, no preamble, with exactly this shape:
 {
   "document_type": "invoice or receipt",
   "vendor_name_raw": "name exactly as printed",
-  "vendor_key": "vendor name normalized to lowercase",
+  "vendor_key": "vendor name normalized to lowercase, without any accents or special character",
   "address": "vendor's full address, or null",
   "invoice_number": "invoice or receipt reference number, or null",
   "issue_date": "YYYY-MM-DD or null",
@@ -83,7 +83,8 @@ Respond ONLY in JSON, no markdown, no preamble, with exactly this shape:
   "payment_status": "unpaid, partial, ou paid",
   "line_items": [
     {
-      "description": "...", "common_name": "...",
+      "description": "...",
+      "common_name": "in one word, not two or more, just one",
       "quantity": 1, "unit_price": 0.00, "line_total": 0.00
     }
   ],
