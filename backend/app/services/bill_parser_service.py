@@ -67,8 +67,7 @@ Respond ONLY in JSON, no markdown, no preamble, with exactly this shape:
 {
   "document_type": "invoice or receipt",
   "vendor_name_raw": "name exactly as printed",
-  "vendor_key": "vendor name normalized to lowercase without punctuation or accents, used to \
-    look up or create the matching vendor",
+  "vendor_key": "vendor name normalized to lowercase",
   "address": "vendor's full address, or null",
   "invoice_number": "invoice or receipt reference number, or null",
   "issue_date": "YYYY-MM-DD or null",
