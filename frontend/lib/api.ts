@@ -389,14 +389,18 @@ export type BillUploadResult = {
 // get the same ApiError either way.
 //
 // Byte-upload progress only covers the request body actually being sent - for a bill-sized
-// PDF that's usually near-instant, but the real vision-model parsing that follows
-// (backend/app/services/bill_parser_service.py) can take 60-180s+, and XHR has no progress
-// signal for that server-side work at all. Without accounting for that, the reported percent
-// would sit frozen at 100% (or whatever the last upload.onprogress tick was) for the entire
-// wait, looking hung. `upload.onprogress` is scaled to 90% and `upload.onloadend` (fires once
-// the request body has finished sending, success or fail) hands off to
-// lib/progress-simulation.ts's shared creep from 90 to 99 for the remaining wait, same
-// approach lib/demo/demo-upload.ts uses for the live demo upload.
+// PDF that's near-instant (milliseconds), while the real vision-model parsing that follows
+// (backend/app/services/bill_parser_service.py) takes ~20s on average (live-measured after
+// disabling reasoning across every agent), and XHR has no progress signal for that
+// server-side work at all. The percentage budget is deliberately lopsided the other way from
+// how long each phase actually takes: `upload.onprogress` only climbs to 8% (the byte
+// transfer is over almost immediately, so it doesn't need much visual real estate), then
+// `upload.onloadend` (fires once the request body has finished sending, success or fail)
+// hands off to lib/progress-simulation.ts's shared creep across the wide 8->96 span for the
+// ~20s wait that actually needs to look alive - the earlier 90->99 split gave the long wait
+// only 9 points to creep through, which read as "stuck at 90%" even though it was technically
+// still moving. Same wide-span approach lib/demo/demo-upload.ts's demoUploadBills uses (its
+// 0->90 span) for the live demo upload.
 export function uploadBills(
   token: string,
   files: File[],
@@ -417,13 +421,13 @@ export function uploadBills(
     if (onProgress) {
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
-          onProgress(Math.round((event.loaded / event.total) * 90));
+          onProgress(Math.round((event.loaded / event.total) * 8));
         }
       };
       xhr.upload.onloadend = () => {
         stopSimulation = startProgressSimulation(onProgress, {
-          from: 90,
-          cap: 99,
+          from: 8,
+          cap: 96,
         });
       };
     }
