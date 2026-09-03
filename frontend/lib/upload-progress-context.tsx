@@ -13,24 +13,22 @@ import {
 // progress no matter which button started the upload, instead of each button only animating
 // its own small icon.
 //
-// Three distinct phases, because XHR's upload.onprogress (lib/api.ts's uploadBills) only
-// tracks the request *body* being sent - for a small PDF over a real network that reaches
-// 100% in a fraction of a second, long before the server has actually finished. The real work
-// (agentic parsing + categorization, real LLM calls) happens after that, server-side, with no
-// progress signal at all - it can easily take 30-60s. Showing a frozen "100%" for that whole
-// wait reads as finished when it isn't, so:
-//   - "uploading": real, determinate, byte progress, capped below 100.
-//   - "processing": the body finished sending but the server hasn't responded yet -
-//     indeterminate (we have no real signal, so no fake number).
-//   - "done": the server actually responded - the only point 100% is shown, briefly, before
-//     the overlay closes on its own.
-type UploadPhase = "uploading" | "processing" | "done";
-
+// A single determinate percentage for the whole wait, nothing more - lib/progress-simulation.ts
+// already covers the entire span (both the request itself and the real server-side parsing
+// that follows, which has no real progress signal of its own) with one continuously-increasing
+// number, all the way up to the real 100% reported once the response actually arrives (see
+// lib/api.ts's uploadBills and lib/demo/demo-upload.ts's demoUploadBills). There used to be a
+// separate "processing" phase here that specifically intercepted any reported percent >= 100
+// and switched to an indeterminate spinner instead of showing it - that was built for an
+// earlier design where real XHR byte-upload progress reached 100% within a fraction of a
+// second, long before the server had actually finished, leaving a real gap with no signal to
+// show a number for. That's no longer true: onProgress is only ever called with 100 once, at
+// the point of genuine completion, so treating it as anything other than real data actively
+// fought the simulation instead of complementing it.
 const DONE_DISPLAY_MS = 500;
 
 type UploadProgressContextValue = {
   uploading: boolean;
-  phase: UploadPhase;
   progress: number;
   beginUpload: () => void;
   setProgress: (percent: number) => void;
@@ -53,29 +51,21 @@ export function UploadProgressProvider({
   children: React.ReactNode;
 }) {
   const [uploading, setUploading] = useState(false);
-  const [phase, setPhase] = useState<UploadPhase>("uploading");
   const [progress, setProgressState] = useState(0);
   const [uploadVersion, setUploadVersion] = useState(0);
 
   const beginUpload = useCallback(() => {
     setUploading(true);
-    setPhase("uploading");
     setProgressState(0);
   }, []);
   const setProgress = useCallback((percent: number) => {
-    // The request body finished sending, but the server (parsing/categorizing) hasn't
-    // responded yet - switch to the indeterminate spinner rather than sitting at a
-    // misleading "100%".
-    if (percent >= 100) {
-      setPhase("processing");
-      return;
-    }
     setProgressState(percent);
   }, []);
   const endUpload = useCallback(() => {
-    // The server has actually responded now - show a real, brief 100% rather than just
-    // vanishing out of the indeterminate spinner.
-    setPhase("done");
+    // The server has actually responded now - show a real, brief 100% (onProgress(100) from
+    // uploadBills/demoUploadBills has usually already set this, but asserting it here too
+    // means the overlay always ends at a real 100% even if a caller didn't pass onProgress
+    // through, or the very last tick landed just under it) rather than just vanishing.
     setProgressState(100);
     setUploadVersion((v) => v + 1);
     setTimeout(() => setUploading(false), DONE_DISPLAY_MS);
@@ -84,22 +74,13 @@ export function UploadProgressProvider({
   const value = useMemo(
     () => ({
       uploading,
-      phase,
       progress,
       beginUpload,
       setProgress,
       endUpload,
       uploadVersion,
     }),
-    [
-      uploading,
-      phase,
-      progress,
-      beginUpload,
-      setProgress,
-      endUpload,
-      uploadVersion,
-    ],
+    [uploading, progress, beginUpload, setProgress, endUpload, uploadVersion],
   );
 
   return (
