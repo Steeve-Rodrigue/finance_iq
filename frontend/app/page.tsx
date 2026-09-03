@@ -38,7 +38,7 @@ export default function LandingPage() {
       />
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-to-r from-white via-white/70 to-transparent"
+        className="absolute inset-0 bg-gradient-to-r from-white via-white/50 to-transparent"
       />
 
       {/* md+: an actual 70/30 grid split (fr units, so it's a true proportion of the
