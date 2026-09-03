@@ -383,24 +383,18 @@ export type BillUploadResult = {
   error: string | null;
 };
 
-// XMLHttpRequest, not fetch: `onProgress` needs real upload-progress events (bytes sent vs.
-// total), which fetch has no API for on the request body side - only XHR's xhr.upload
-// exposes that. Mirrors request()'s error-parsing shape (FastAPI's `detail` field) so callers
-// get the same ApiError either way.
-//
-// Byte-upload progress only covers the request body actually being sent - for a bill-sized
-// PDF that's near-instant (milliseconds), while the real vision-model parsing that follows
-// (backend/app/services/bill_parser_service.py) takes ~20s on average (live-measured after
-// disabling reasoning across every agent), and XHR has no progress signal for that
-// server-side work at all. The percentage budget is deliberately lopsided the other way from
-// how long each phase actually takes: `upload.onprogress` only climbs to 8% (the byte
-// transfer is over almost immediately, so it doesn't need much visual real estate), then
-// `upload.onloadend` (fires once the request body has finished sending, success or fail)
-// hands off to lib/progress-simulation.ts's shared creep across the wide 8->96 span for the
-// ~20s wait that actually needs to look alive - the earlier 90->99 split gave the long wait
-// only 9 points to creep through, which read as "stuck at 90%" even though it was technically
-// still moving. Same wide-span approach lib/demo/demo-upload.ts's demoUploadBills uses (its
-// 0->90 span) for the live demo upload.
+// XMLHttpRequest, not fetch: it's still what actually sends the request (Authorization header,
+// FormData body, response parsing) - only the progress *reporting* changed. Byte-upload
+// progress via `xhr.upload.onprogress`/`onloadend` (real upload-progress events fetch has no
+// API for) is no longer used at all: for a bill-sized PDF that phase is over in milliseconds
+// anyway, but real-browser XHR upload-event ordering/timing for a fast local request turned
+// out not to reliably hand off into the simulated creep for the ~20s parsing wait that
+// follows (observed live: progress climbed to 8% then jumped straight to 100%, skipping the
+// simulated phase - a Node-mocked XHR test didn't reproduce this). Simpler and more robust to
+// just not depend on those events: start lib/progress-simulation.ts's shared simulation
+// immediately when the request starts (default 0->90 span), same as
+// lib/demo/demo-upload.ts's demoUploadBills already does successfully for the live demo
+// upload - one progress source, not two handed off between each other.
 export function uploadBills(
   token: string,
   files: File[],
@@ -416,24 +410,12 @@ export function uploadBills(
     xhr.open("POST", `${API_BASE_URL}/bills/upload`);
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
-    let stopSimulation: (() => void) | null = null;
-
-    if (onProgress) {
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          onProgress(Math.round((event.loaded / event.total) * 8));
-        }
-      };
-      xhr.upload.onloadend = () => {
-        stopSimulation = startProgressSimulation(onProgress, {
-          from: 8,
-          cap: 96,
-        });
-      };
-    }
+    const stopSimulation = onProgress
+      ? startProgressSimulation(onProgress)
+      : () => {};
 
     xhr.onload = () => {
-      stopSimulation?.();
+      stopSimulation();
       if (xhr.status >= 200 && xhr.status < 300) {
         onProgress?.(100);
         try {
@@ -468,7 +450,7 @@ export function uploadBills(
     };
 
     xhr.onerror = () => {
-      stopSimulation?.();
+      stopSimulation();
       reject(new ApiError("Network error - please check your connection.", 0));
     };
 
