@@ -131,7 +131,7 @@ async def call_categorizer(
         # Reasoning disabled by explicit choice - see bill_parser_service.call_parser's comment
         # on the same change for the full rationale (hidden reasoning was the dominant cost in
         # observed per-call latency).
-        extra_body={"reasoning": {"effort": "none"}},
+        extra_body={"reasoning": {"effort": "medium"}},
     )
     if not response.choices:
         # Same gap as bill_parser_service.call_parser had - a free-tier model can return a

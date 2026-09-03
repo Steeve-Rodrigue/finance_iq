@@ -158,7 +158,8 @@ Field-by-field notes:
     document (they need today's date or external dispute context this agent doesn't have) -
     never guess either of those.
 - line_items: one entry per line on the document.
-  - description: the exact label as printed, in the document's own language - never translated.
+  - description: the exact label as printed, in the document's own language - never translated,
+  make sure to only capture the bought item, dont register espèces cash or other things.
   - common_name: a short, common name (in one word) in French for what this line item actually
   *is* make it general  so that all items for the same product/service across different documents
     will be matched to the same common_name.
@@ -222,7 +223,7 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
         # Re-verify extraction quality on real bills after this change - PARSER_MODEL's
         # nemotron reasoning info confirms {"mandatory": false}, so "none" is honored rather
         # than silently ignored.
-        extra_body={"reasoning": {"effort": "none"}},
+        extra_body={"reasoning": {"effort": "minimal"}},
     )
 
     if not response.choices:
