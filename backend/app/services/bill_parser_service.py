@@ -214,12 +214,15 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
             },
         ],
         temperature=0.3,
-        # "medium", not "low" - the address/common_name sanity-checking above genuinely needs
-        # the model to reason, not just pattern-match visible characters. Validated against a
-        # real scanned bill in notebooks/vision_model.ipynb with this exact model/effort/
-        # max_tokens combination: returns a complete, well-formed response, doesn't truncate
-        # into empty content from spending its whole budget on hidden reasoning.
-        extra_body={"reasoning": {"effort": "medium"}},
+        # Reasoning disabled by explicit choice - not free by default on a "reasoning" model,
+        # and it was the dominant cost in the 60-180s+ per-call latency observed live (medium
+        # effort was previously kept on purpose: PARSER_PROMPT's address/common_name
+        # sanity-checking benefits from it, and low effort caused gpt-oss-120b, an earlier
+        # PARSER_MODEL, to spend its whole budget on hidden reasoning and return empty content).
+        # Re-verify extraction quality on real bills after this change - PARSER_MODEL's
+        # nemotron reasoning info confirms {"mandatory": false}, so "none" is honored rather
+        # than silently ignored.
+        extra_body={"reasoning": {"effort": "none"}},
     )
 
     if not response.choices:
