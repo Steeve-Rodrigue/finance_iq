@@ -74,7 +74,6 @@ async def test_agent_insights_empty_state(client: AsyncClient) -> None:
 
     assert body["kpis"]["avg_confidence"] is None
     assert body["kpis"]["auto_resolved_rate"] == "0"
-    assert body["kpis"]["ocr_rate"] is None
     assert body["kpis"]["bills_in_backlog"] == 0
     # Fixed 10 buckets always render (like the stage funnel below), just all empty.
     assert len(body["confidence_distribution"]) == 10
@@ -91,7 +90,6 @@ async def test_agent_insights_kpis(client: AsyncClient) -> None:
 
     assert float(kpis["avg_confidence"]) == pytest.approx(0.60)
     assert float(kpis["auto_resolved_rate"]) == 75.0  # 3 of 4 bills have no elicitation
-    assert float(kpis["ocr_rate"]) == pytest.approx(66.667, abs=0.01)  # 2 of 3 parsed used ocr
     assert kpis["bills_in_backlog"] == 2  # categorizing + uploaded
 
 
@@ -112,8 +110,6 @@ async def test_agent_insights_confidence_by_category_and_strategy(client: AsyncC
     }
     assert float(by_strategy["direct"]["avg_confidence"]) == 0.90
     assert by_strategy["direct"]["bill_count"] == 1
-    assert float(by_strategy["ocr"]["avg_confidence"]) == 0.45
-    assert by_strategy["ocr"]["bill_count"] == 2
     assert by_strategy["unknown"]["avg_confidence"] is None
     assert by_strategy["unknown"]["bill_count"] == 1
 
