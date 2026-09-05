@@ -7,7 +7,6 @@ from pydantic import BaseModel
 class AgentInsightsKPIs(BaseModel):
     avg_confidence: Decimal | None
     auto_resolved_rate: Decimal
-    ocr_rate: Decimal | None
     bills_in_backlog: int
 
 
