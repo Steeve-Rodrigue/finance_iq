@@ -52,3 +52,8 @@ clean: ## Remove caches and bytecode
 # Dans ton dossier backend/
 #export MIGRATION_DATABASE_URL="postgresql+psycopg://USER:PASS@ep-xxx.neon.tech/financeiq?sslmode=require" \
 #uv run alembic upgrade head
+#https://financeiq-api-zpba.onrender.com/docs
+#https://console.neon.tech/app/projects/snowy-feather-46914507
+#https://finance-iq-v1.vercel.app/
+#https://dashboard.uptimerobot.com/monitors
+#https://vercel.com/fi-nance1/finance-iq-v1

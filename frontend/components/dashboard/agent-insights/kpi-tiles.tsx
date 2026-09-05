@@ -46,19 +46,6 @@ export function AgentInsightsKpiTiles({ kpis }: AgentInsightsKpiTilesProps) {
       </KpiTile>
 
       <KpiTile
-        title="OCR rate"
-        subtitle="Scanned vs. structured input"
-        icon={ScanLine}
-        tint={TINTS.blue}
-        value={kpis.ocr_rate === null ? "—" : formatPercent(kpis.ocr_rate)}
-        className="motion-safe:delay-200"
-      >
-        <KpiChip icon={ScanLine} tint={TINTS.blue.chip}>
-          used OCR extraction
-        </KpiChip>
-      </KpiTile>
-
-      <KpiTile
         title="In backlog"
         subtitle="Still moving through the pipeline"
         icon={Archive}

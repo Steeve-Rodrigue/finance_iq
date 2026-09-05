@@ -46,7 +46,6 @@ async def get_agent_insights(db: AsyncSession, user_id: uuid.UUID) -> AgentInsig
     without_elicitation, total_bills = await agent_insights_repo.get_auto_resolved_rate_inputs(
         db, user_id
     )
-    ocr_count, extracted_count = await agent_insights_repo.get_ocr_rate_inputs(db, user_id)
     backlog_count = await agent_insights_repo.get_bills_in_backlog_count(db, user_id)
 
     trend_rows = await agent_insights_repo.get_confidence_trend(db, user_id)
@@ -58,13 +57,11 @@ async def get_agent_insights(db: AsyncSession, user_id: uuid.UUID) -> AgentInsig
     auto_resolved_rate = (
         Decimal(without_elicitation) / Decimal(total_bills) * 100 if total_bills else Decimal("0")
     )
-    ocr_rate = Decimal(ocr_count) / Decimal(extracted_count) * 100 if extracted_count else None
 
     return AgentInsightsResponse(
         kpis=AgentInsightsKPIs(
             avg_confidence=avg_confidence,
             auto_resolved_rate=auto_resolved_rate,
-            ocr_rate=ocr_rate,
             bills_in_backlog=backlog_count,
         ),
         confidence_trend=[
