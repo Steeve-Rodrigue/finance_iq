@@ -12,7 +12,7 @@
 // for the 15.7s/17.6s samples this is based on). The target duration both callers below pace
 // their simulated creep against, so the bar's pace reflects real-world timing instead of an
 // arbitrary guess - update this if the real average measurably drifts.
-export const AVERAGE_PARSE_DURATION_MS = 48_000;
+export const AVERAGE_PARSE_DURATION_MS = 68_000;
 
 // Paced by duration + tick count, not a fixed step/interval: a fixed step/interval reaches very
 // different real times depending on how many percentage points `[from, cap]` actually spans -

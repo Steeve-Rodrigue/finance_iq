@@ -84,7 +84,8 @@ Respond ONLY in JSON, no markdown, no preamble, with exactly this shape:
   "line_items": [
     {
       "description": "...",
-      "common_name": "in one word, not two or more, just one",
+      "common_name": "in one word, not two or more, just one in lowercase
+        with no accents or special characters",
       "quantity": 1, "unit_price": 0.00, "line_total": 0.00
     }
   ],
