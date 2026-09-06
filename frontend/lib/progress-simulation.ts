@@ -25,7 +25,7 @@ export function startProgressSimulation(
   onProgress: (percent: number) => void,
   {
     from = 0,
-    cap = 90,
+    cap = 99,
     durationMs = AVERAGE_PARSE_DURATION_MS,
     ticks = 24,
   }: { from?: number; cap?: number; durationMs?: number; ticks?: number } = {},
