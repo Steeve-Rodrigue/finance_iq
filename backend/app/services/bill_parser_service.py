@@ -224,7 +224,7 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
         # Re-verify extraction quality on real bills after this change - PARSER_MODEL's
         # nemotron reasoning info confirms {"mandatory": false}, so "none" is honored rather
         # than silently ignored.
-        extra_body={"reasoning": {"effort": "minimal"}},
+        extra_body={"reasoning": {"effort": "none"}},
     )
 
     if not response.choices:
