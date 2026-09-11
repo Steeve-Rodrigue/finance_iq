@@ -204,7 +204,7 @@ async def call_parser(pdf_path: Path, model: str) -> dict[str, Any]:
 
     response = await llm_client.client.chat.completions.create(
         model=model,
-        max_tokens=1000,
+        max_tokens=1024,
         messages=[
             {"role": "system", "content": PARSER_PROMPT},
             {
