@@ -46,6 +46,7 @@ clean: ## Remove caches and bytecode
 
 
 # sudo -n ss -ltnp 2>&1
+#fuser -v -n tcp 8080
 #sudo systemctl restart docker
 #sudo systemctl stop postgresql@14-main.service
 
