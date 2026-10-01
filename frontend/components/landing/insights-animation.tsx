@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 type Phase = "scan" | "analyze" | "insights" | "chart";
 
 const PHASES: Phase[] = ["scan", "analyze", "insights", "chart"];
-const PHASE_DURATION_MS = 5200;
+const PHASE_DURATION_MS = 8200;
 
 const PHASE_LABELS: Record<Phase, string> = {
   scan: "Scanning",
