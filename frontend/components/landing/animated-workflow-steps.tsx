@@ -14,7 +14,7 @@ const STEPS = [
   { label: "Understand", icon: Lightbulb },
 ];
 
-const INTERVAL_MS = 1500;
+const INTERVAL_MS = 2000;
 
 // Cycles which chip reads as "active" (filled, scaled up) so the Upload -> Analyze ->
 // Understand row shows the pipeline actually moving instead of sitting as three static

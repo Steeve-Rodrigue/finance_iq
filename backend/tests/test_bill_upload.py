@@ -306,3 +306,84 @@ async def test_call_parser_sets_extraction_strategy_to_vision_regardless_of_text
 
     scanned_result = await bill_parser_service.call_parser(_SCANNED_PDF, "any-model")
     assert scanned_result["extraction_strategy"] == "vision"
+
+
+async def test_upload_normalizes_day_first_dates_and_null_strings(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: a model copying a French receipt's DD/MM/YYYY dates verbatim, and writing
+    the string "null" for absent fields, used to reach Postgres as-is - "30/09/2026" raised
+    DatetimeFieldOverflow, "11/12/2026" would have been stored as November 12."""
+    token = await signup_and_login(client, "upload-j@example.com", "upload_j")
+    calls = _mock_call_parser(
+        monkeypatch,
+        [
+            _high_confidence_result(
+                issue_date="30/09/2026",
+                due_date="11/12/2026",
+                invoice_number="null",
+                service_period_start="null",
+                service_period_end="null",
+            )
+        ],
+    )
+
+    response = await _upload(client, token)
+    assert response.status_code == 201
+    result = response.json()[0]
+    assert result["error"] is None
+    bill = result["bill"]
+    assert bill["issue_date"] == "2026-09-30"
+    assert bill["due_date"] == "2026-12-11"
+    assert bill["invoice_number"] is None
+    assert bill["service_period_start"] is None
+    assert bill["current_stage"] == "complete"
+    assert calls == [bill_parser_service.PARSER_MODEL]
+
+
+async def test_upload_retries_when_a_date_is_unreadable(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = await signup_and_login(client, "upload-k@example.com", "upload_k")
+    calls = _mock_call_parser(
+        monkeypatch,
+        [_high_confidence_result(issue_date="31/31/2026"), _high_confidence_result()],
+    )
+
+    response = await _upload(client, token)
+    assert response.status_code == 201
+    result = response.json()[0]
+    assert result["error"] is None
+    assert result["bill"]["issue_date"] == "2026-01-15"
+    assert result["bill"]["current_stage"] == "complete"
+    assert calls == [bill_parser_service.PARSER_MODEL, bill_parser_service.RETRY_MODEL]
+
+
+async def test_upload_elicits_when_a_date_stays_unreadable_after_retry(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable date must end as a question to the user (non-negotiable #4), not a
+    database error surfaced as the file's `error`."""
+    token = await signup_and_login(client, "upload-l@example.com", "upload_l")
+    _mock_call_parser(
+        monkeypatch,
+        [
+            _high_confidence_result(issue_date="31/31/2026"),
+            _high_confidence_result(issue_date="09/30/2026"),
+        ],
+    )
+
+    response = await _upload(client, token)
+    assert response.status_code == 201
+    result = response.json()[0]
+    assert result["error"] is None
+    bill = result["bill"]
+    assert bill["status"] == "flagged"
+    assert bill["current_stage"] == "parsing"
+
+    elicitations = (
+        await client.get(f"/bills/{bill['id']}/elicitations/", headers=auth_header(token))
+    ).json()
+    assert len(elicitations) == 1
+    assert "issue_date" in elicitations[0]["question"]
+    assert "09/30/2026" in elicitations[0]["question"]

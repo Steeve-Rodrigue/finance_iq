@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     parser_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
-    parser_retry_model: str = "qwen/qwen3-vl-235b-a22b-instruct"
+    parser_retry_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
 
 
 settings = Settings()

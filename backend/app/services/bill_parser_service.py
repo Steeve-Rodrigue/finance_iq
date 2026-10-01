@@ -1,5 +1,6 @@
 import re
 import uuid
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,9 @@ PARSER_MODEL = settings.parser_model
 RETRY_MODEL = settings.parser_retry_model
 HIGH_CONFIDENCE_THRESHOLD = 0.85
 LOW_CONFIDENCE_FLOOR = 0.70
+# Below LOW_CONFIDENCE_FLOOR on purpose: a date the model returned in a shape we can't read is
+# never accepted on either attempt - first pass escalates to RETRY_MODEL, a second one elicits.
+UNREADABLE_DATE_CONFIDENCE_CAP = 0.50
 
 PARSER_PROMPT = """You extract information from an invoice or receipt, given the page image(s) \
 of the original document below. The scan itself may be low quality (skewed, blurry, faint \
@@ -123,7 +127,10 @@ Field-by-field notes:
   character in it is readable - treat it the same as an illegible field for confidence purposes,
   don't silently pass it through.
 - invoice_number: as printed, or null if there isn't one.
-- issue_date / due_date: YYYY-MM-DD, or null if absent or not applicable.
+- issue_date / due_date: YYYY-MM-DD, or null if absent or not applicable. Always convert to
+  YYYY-MM-DD yourself, even when the document prints the date as DD/MM/YYYY (the usual French
+  format) - never copy the printed format. For any absent field use JSON null, never the
+  string "null".
 - service_period_start / service_period_end: the period the invoice covers (e.g. a subscription
   or utility bill), or null for a one-off receipt with no period.
 - subtotal: amount before tax. Many French receipts print a "RECAPITULATIF TVA" (or similar)
@@ -271,13 +278,14 @@ async def _call_parser_safe(pdf_path: Path, model: str) -> dict[str, Any]:
     with a different model is for - PARSER_MODEL and RETRY_MODEL are different OpenRouter
     accounts/models, so a quota hit on one doesn't necessarily block the other."""
     try:
-        return await call_parser(pdf_path, model)
+        result = await call_parser(pdf_path, model)
     except (RuntimeError, openai.APIError) as exc:
         logger.warning("bill_parser.call_failed", model=model, error=str(exc))
         return {
             "confidence": 0.0,
             "reasoning": f"Le modèle {model} n'a pas produit une réponse exploitable : {exc}",
         }
+    return _normalize_parser_result(result)
 
 
 async def run_decision_loop(pdf_path: Path) -> tuple[dict[str, Any], bool]:
@@ -346,6 +354,103 @@ _BILL_FIELDS = (
 )
 
 
+_DATE_FIELDS = ("issue_date", "due_date", "service_period_start", "service_period_end")
+# Day-first only (the French convention these bills are printed in). No month-first fallback:
+# "09/30/2026" is treated as unreadable and asked about, never guessed.
+_DAY_FIRST_DATE_FORMATS = ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d/%m/%y", "%d-%m-%y", "%d.%m.%y")
+_NULL_STRINGS = frozenset({"", "null", "none"})
+
+
+def _parse_date(value: Any) -> date | None:
+    """ISO YYYY-MM-DD (what PARSER_PROMPT asks for) or a day-first DD/MM/YYYY-style date (what
+    a model copying a French document verbatim actually returns). None for anything else."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        pass
+    for fmt in _DAY_FIRST_DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _clean_null(value: Any) -> Any:
+    if isinstance(value, str) and value.strip().lower() in _NULL_STRINGS:
+        return None
+    return value
+
+
+def _clean_nulls(result: dict[str, Any]) -> None:
+    """A model told "..., or null" sometimes writes the *string* "null" - which passes every
+    `is not None` check downstream and gets stored as literal text (or crashes a DATE column).
+    Mutates `result` in place, line items included."""
+    for key, value in result.items():
+        if key == "line_items" and isinstance(value, list):
+            for line_item in value:
+                if isinstance(line_item, dict):
+                    for item_key, item_value in line_item.items():
+                        line_item[item_key] = _clean_null(item_value)
+        else:
+            result[key] = _clean_null(value)
+
+
+def _normalize_dates(result: dict[str, Any]) -> list[tuple[str, Any]]:
+    """Rewrites every date field to an ISO string - kept as a string, not a `date`, since
+    `result` also gets stored as JSON in Elicitation.context["partial_result"]. A value that
+    can't be read is set to None and returned as (field, raw_value) so the caller decides what
+    that means (lower confidence before persisting, log after)."""
+    unreadable: list[tuple[str, Any]] = []
+    for field in _DATE_FIELDS:
+        raw = result.get(field)
+        if raw is None:
+            continue
+        parsed = _parse_date(raw)
+        if parsed is None:
+            unreadable.append((field, raw))
+        result[field] = parsed.isoformat() if parsed else None
+    return unreadable
+
+
+def _normalize_parser_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Type-level cleanup of a model's raw result, before the decision loop looks at its
+    confidence. A date the model returned in an unreadable shape is the same kind of problem as
+    an illegible field - the model's own confidence didn't account for it, so cap it here and
+    name the field, sending the bill through retry-then-elicit instead of failing at the
+    database (non-negotiable #4)."""
+    _clean_nulls(result)
+    unreadable = _normalize_dates(result)
+    if not unreadable:
+        return result
+
+    logger.warning("bill_parser.unreadable_dates", fields=[field for field, _ in unreadable])
+    confidence = result.get("confidence")
+    result["confidence"] = (
+        min(confidence, UNREADABLE_DATE_CONFIDENCE_CAP)
+        if isinstance(confidence, int | float)
+        else 0.0
+    )
+    result["uncertain_fields"] = [
+        *(result.get("uncertain_fields") or []),
+        *({"field": field, "reason": f"date illisible : « {raw} »"} for field, raw in unreadable),
+    ]
+    names = ", ".join(field for field, _ in unreadable)
+    result["reasoning"] = " ".join(
+        part
+        for part in (result.get("reasoning"), f"Date(s) dans un format illisible : {names}.")
+        if part
+    )
+    return result
+
+
 _LINE_ITEM_FIELD_RE = re.compile(r"^line_items\[(\d+)\]\.(.+)$")
 
 
@@ -412,9 +517,25 @@ async def persist_bill_result(
     """The one place a finalized (resolved) parse result actually gets written - called both
     for a bill resolved on the first pass/retry, and for one resumed after an elicitation
     answer merges the user's input into a previously-uncertain result."""
+    # Same cleanup as _normalize_parser_result, on a copy - this is also reached with a result
+    # merged from an elicitation answer, which never went through _call_parser_safe.
+    result = {
+        **result,
+        "line_items": [
+            dict(item) if isinstance(item, dict) else item
+            for item in result.get("line_items") or []
+        ],
+    }
+    _clean_nulls(result)
+    for field, raw in _normalize_dates(result):
+        logger.warning("bill_parser.date_dropped", bill_id=str(bill_id), field=field, value=raw)
+
     updates: dict[str, Any] = {
         key: result[key] for key in _BILL_FIELDS if result.get(key) is not None
     }
+    for field in _DATE_FIELDS:
+        if field in updates:
+            updates[field] = date.fromisoformat(updates[field])
     updates["confidence"] = result.get("confidence")
     updates["reasoning"] = result.get("reasoning")
     updates["vendor_id"] = await _get_or_create_vendor_id(db, user_id, result)
@@ -428,8 +549,8 @@ async def persist_bill_result(
         # actually updated.
         raise NotFoundError(f"bill {bill_id} not found")
 
-    for line_item in result.get("line_items", []) or []:
-        if "description" not in line_item or "line_total" not in line_item:
+    for line_item in result["line_items"]:
+        if line_item.get("description") is None or line_item.get("line_total") is None:
             logger.warning(
                 "bill_parser.line_item_skipped", bill_id=str(bill_id), line_item=line_item
             )
